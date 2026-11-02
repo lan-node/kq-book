@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c0392b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="考勤本">
+<link rel="manifest" href='data:application/manifest+json,{"name":"考勤本","short_name":"考勤本","start_url":".","display":"standalone","background_color":"%23fbfaf6","theme_color":"%23c0392b"}'>
+<title>考勤本 · 记工与工资</title>
+<style>
+  :root{
+    --paper:#fbfaf6;
+    --paper-dim:#f3f1e8;
+    --ink-b:#1d3f9e;
+    --ink-r:#c0392b;
+    --ink-r-deep:#a52f1f;
+    --ink-2:#55587f;
+    --rule:rgba(29,63,158,.16);
+    --rule-strong:rgba(29,63,158,.4);
+    --hand:"KaiTi","Kaiti SC","STKaiti","DFKai-SB",serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,"Liberation Mono",monospace;
+    --sans:"Microsoft YaHei","PingFang SC","HarmonyOS Sans SC",system-ui,sans-serif;
+    --barH:48px;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{margin:0}
+  body{
+    background:#e9e6dd;
+    color:var(--ink-b);
+    font-family:var(--hand);
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ink-r);outline-offset:2px}
+  ::selection{background:rgba(29,63,158,.22)}
+  input{caret-color:var(--ink-r)}
+  input::placeholder{color:#55587f}
+
+  /* ---------- GitHub 云同步 ---------- */
+  .gh-box{margin-top:14px;padding-top:12px;border-top:2px dashed var(--rule-strong)}
+  .gh-h{font-size:17px;font-weight:700;letter-spacing:.06em;margin-bottom:8px}
+  .gh-tag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.12em;
+    color:var(--ink-b);border:1.5px solid var(--rule-strong);border-radius:2px;padding:1px 6px;margin-left:8px;vertical-align:2px}
+  .gh-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+  .gh-row input{
+    flex:1;height:44px;padding:0 10px;font-family:var(--mono);font-size:12.5px;color:var(--ink-b);
+    border:1.5px solid var(--rule-strong);border-radius:2px;background:#fff;min-width:0;
+  }
+  .gh-status{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin:6px 0 0;line-height:1.6}
+  .gh-status.ok{color:var(--ink-b);font-weight:700}
+  .gh-status.bad{color:var(--ink-r);font-weight:700}
+  .gh-tip{font-size:12px;color:var(--ink-2);font-family:var(--sans);line-height:1.7;margin:8px 0 0;
+    border-left:3px solid var(--rule-strong);padding-left:8px}
+
+  /* ---------- 红条标 ---------- */
+  .ribbon{
+    position:sticky;top:0;z-index:40;height:var(--barH);
+    background:var(--ink-r);color:#fdf8f2;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:0 12px;
+    box-shadow:0 2px 0 rgba(0,0,0,.22),0 10px 18px rgba(0,0,0,.16);
+  }
+  .ribbon .logo{font-size:17px;font-weight:700;letter-spacing:.14em;white-space:nowrap}
+  .month-nav{display:flex;align-items:center;gap:2px;min-width:0}
+  .iconbtn{
+    width:44px;height:44px;border:0;background:none;color:#fdf8f2;
+    font-size:19px;line-height:1;border-radius:3px;
+  }
+  .iconbtn:hover{background:rgba(255,255,255,.16)}
+  .monthbtn{
+    border:0;background:none;color:#fdf8f2;font-family:inherit;
+    font-size:15px;font-weight:700;letter-spacing:.06em;height:44px;padding:0 8px;
+    white-space:nowrap;font-variant-numeric:tabular-nums;
+  }
+  .today-btn{
+    border:1px solid rgba(253,248,242,.6);background:none;color:#fdf8f2;
+    font-family:inherit;font-size:13px;height:44px;padding:0 12px;border-radius:2px;white-space:nowrap;
+  }
+  .today-btn:hover{background:rgba(255,255,255,.14)}
+  .sync-dot{width:9px;height:9px;border-radius:50%;background:#e8c9b8;flex:none;margin-left:2px}
+  .sync-dot.sync-on{background:#8fd6a2}
+  .sync-dot.sync-busy{background:#f2d06b}
+  .sync-dot.sync-err{background:#f2b705}
+
+  /* ---------- 卡纸 ---------- */
+  .card{
+    position:relative;max-width:1060px;margin:14px auto 96px;
+    background:var(--paper);
+    background-image:linear-gradient(rgba(29,63,158,.055) 1px,transparent 1px);
+    background-size:100% 27px;
+    box-shadow:0 1px 0 rgba(0,0,0,.22),0 3px 8px rgba(0,0,0,.18),0 18px 36px rgba(0,0,0,.14);
+    min-height:calc(100vh - var(--barH) - 96px);
+    padding-top:12px;
+  }
+  .punch{
+    position:absolute;top:0;bottom:0;left:0;width:30px;pointer-events:none;
+    background-image:radial-gradient(circle at 15px 34px,#e9e6dd 0 5px,rgba(0,0,0,.14) 5px 6px,transparent 7px);
+    background-size:30px 118px;
+  }
+  .inner{padding:0 18px 20px 48px;position:relative}
+  @media (max-width:920px){
+    .card{margin:10px 10px 110px;min-height:calc(100vh - var(--barH) - 120px)}
+    .inner{padding:0 12px 18px 40px}
+  }
+  @media (max-width:560px){
+    .card{margin:8px 8px 110px}
+    .inner{padding:0 10px 16px 34px}
+    .punch{width:24px;background-size:24px 118px}
+  }
+
+  /* ---------- A/B/卡背 标签 ---------- */
+  .faces{display:flex;gap:0;padding:14px 0 0;position:sticky;top:var(--barH);z-index:30;
+    background:var(--paper);border-bottom:2px solid var(--ink-b)}
+  .face{
+    border:0;background:none;font-family:var(--hand);font-size:15.5px;font-weight:700;
+    color:var(--ink-2);padding:11px 14px 9px;letter-spacing:.08em;position:relative;white-space:nowrap;
+  }
+  .face[aria-selected="true"]{color:var(--ink-b)}
+  .face[aria-selected="true"]::after{
+    content:"";position:absolute;left:10px;right:10px;bottom:-2px;height:3px;background:var(--ink-b);
+  }
+  .face:hover{color:var(--ink-b)}
+  .face .en{font-size:11px;letter-spacing:.2em;display:block;opacity:.6;line-height:1;margin-top:1px;font-family:var(--mono)}
+  .panel{display:none}
+  .panel.on{display:block}
+
+  /* ---------- A 面：总额 + 曲目单 ---------- */
+  .ledger{padding:14px 0 6px;position:relative}
+  .ledger .mo{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .ledger .mo b{font-size:23px;letter-spacing:.08em;font-weight:700}
+  .ledger .mo .yr{font-size:13px;color:var(--ink-2);letter-spacing:.18em;font-family:var(--mono)}
+  .sum{
+    margin:2px 0 4px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+    transform:rotate(-.7deg);transform-origin:left center;
+  }
+  .sum .num{
+    font-size:74px;font-weight:700;line-height:1.04;color:var(--ink-b);letter-spacing:-.01em;
+    font-variant-numeric:tabular-nums;
+    text-shadow:1.5px 1.5px 0 rgba(0,0,0,.14);
+  }
+  .sum .num small{font-size:32px;font-weight:700;margin-right:2px}
+  .sum .num.neg{color:var(--ink-r)}
+  .sum .behind{font-size:15px;color:var(--ink-2);line-height:1.6}
+  .sum .behind b{color:var(--ink-b)}
+  .sum .behind .minus{color:var(--ink-r);font-weight:700}
+
+  .loanline{
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+    margin:6px 0 2px;padding:7px 0 8px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+    font-size:14px;color:var(--ink-2);
+  }
+  .loanline b{color:var(--ink-r-deep);font-size:15px}
+  .loanline .go{
+    border:0;background:none;font-family:var(--hand);font-size:14px;font-weight:700;
+    color:var(--ink-b);text-decoration:underline;text-underline-offset:4px;
+    display:inline-flex;align-items:center;justify-content:center;
+    height:44px;padding:0 10px;margin:-6px -8px -6px 0;
+  }
+  .loanline .go:hover{color:var(--ink-r)}
+
+  /* tracklist */
+  .tracks{margin-top:4px}
+  .track{
+    display:flex;align-items:baseline;gap:9px;width:100%;
+    padding:9px 6px 8px 2px;min-height:46px;
+    border:0;background:none;text-align:left;font-family:var(--hand);
+    font-size:15px;color:var(--ink-b);position:relative;
+  }
+  .track:hover{background:rgba(29,63,158,.05)}
+  .track.sel{background:rgba(29,63,158,.09);box-shadow:inset 2px 0 0 var(--ink-r)}
+  .track .no{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);width:20px;flex:none;font-variant-numeric:tabular-nums}
+  .track .dt{width:64px;flex:none;font-weight:700;font-variant-numeric:tabular-nums}
+  .track .dt small{display:block;font-size:11px;color:var(--ink-2);font-weight:400;letter-spacing:.06em}
+  .track .nm{flex:none;font-weight:700}
+  .track .ot{font-size:12.5px;color:var(--ink-2);margin-left:4px}
+  .track .lead{flex:1;border-bottom:2px dotted rgba(29,63,158,.42);transform:translateY(-5px);min-width:24px}
+  .track .amt{flex:none;font-family:var(--mono);font-weight:700;font-size:15.5px;font-variant-numeric:tabular-nums}
+  .track.rest{color:var(--ink-2)}
+  .track.rest .nm,.track.rest .amt{color:var(--ink-2)}
+  .track.half .nm::after{content:" · 半天";font-size:11.5px;color:var(--ink-r);font-weight:400}
+  .track.today .dt{color:var(--ink-r)}
+  .track.today::before{
+    content:"";position:absolute;left:-4px;top:50%;width:7px;height:7px;border-radius:50%;
+    background:var(--ink-r);transform:translateY(-50%);
+  }
+  .track .note{display:block;font-size:12px;color:var(--ink-2);font-family:var(--sans);margin-top:1px}
+
+  /* ---------- B 面：月历 ---------- */
+  .cal{margin-top:12px}
+  .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:12px;color:var(--ink-2);text-align:center;padding-bottom:4px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;grid-auto-rows:64px}
+  .day-blank{aspect-ratio:auto}
+  .day{
+    position:relative;border:1.5px solid var(--rule-strong);border-radius:2px;background:none;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+    font-family:var(--hand);color:var(--ink-b);padding:0;transition:background .12s;
+  }
+  .day:hover{background:rgba(29,63,158,.06)}
+  .day .dnum{font-family:var(--mono);font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .day.work{background:var(--ink-b);border-color:var(--ink-b);color:var(--paper)}
+  .day.half{background:var(--paper-dim);border-color:var(--ink-b)}
+  .day.half .dnum{color:var(--ink-b)}
+  .day.half .halfmark{position:absolute;top:2px;left:4px;font-size:11px;font-weight:700;color:var(--ink-r)}
+  .day.rest{border-style:dashed;color:var(--ink-2)}
+  .day.ot .otdot{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--ink-r)}
+  .day.today{box-shadow:inset 0 0 0 2px var(--ink-r)}
+  .day.sel{outline:2px solid var(--ink-b);outline-offset:2px}
+  .day.weekend .dnum{color:var(--ink-2)}
+  .day.work.weekend .dnum,.day.work .dnum{color:var(--paper)}
+  @media (max-width:520px){
+    .cal-grid{grid-auto-rows:54px}
+  }
+
+  /* ---------- 表格/汇总 ---------- */
+  .sheet{margin-top:14px}
+  .sheet h3{font-size:17px;font-weight:700;letter-spacing:.06em;margin:0 0 6px;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  table.wk{width:100%;border-collapse:collapse;font-size:14px}
+  table.wk th{
+    font-weight:700;color:var(--ink-2);text-align:right;font-size:11.5px;
+    letter-spacing:.08em;padding:0 0 5px;
+  }
+  table.wk th:first-child{text-align:left}
+  table.wk td{
+    padding:8px 0;text-align:right;border-top:1px solid var(--rule);
+    font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-b);
+  }
+  table.wk td:first-child{text-align:left;font-family:var(--hand);color:var(--ink-b)}
+  table.wk .rng{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:1px}
+  table.wk tr.cur td:first-child{color:var(--ink-r);font-weight:700}
+  table.wk tfoot td{border-top:2px solid var(--rule-strong);font-weight:700}
+  table.wk tfoot td:first-child{font-family:var(--hand)}
+  .wk-note{margin:9px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+
+  /* ---------- 卡背 ---------- */
+  .backsec{margin-top:16px;padding-top:12px;border-top:1px solid var(--rule)}
+  .backsec:first-child{border-top:0;padding-top:0}
+  .backsec h3{font-size:17px;font-weight:700;letter-spacing:.06em;margin:0 0 4px;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .tip{margin:2px 0 10px;font-size:13.5px;color:var(--ink-2);line-height:1.6}
+  .lf-lb{font-size:12.5px;color:var(--ink-2);display:block}
+  .loan-form{display:grid;grid-template-columns:1fr 1fr;gap:9px 8px;margin:0 0 12px}
+  .lf{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .lf.wide{grid-column:1/-1}
+  .lf label{font-size:12.5px;color:var(--ink-2)}
+  .lf input{
+    height:44px;padding:0 10px;font-family:var(--sans);font-size:15px;color:var(--ink-b);
+    border:1.5px solid var(--rule-strong);border-radius:2px;background:#fff;min-width:0;width:100%;
+  }
+  .lf input[type="number"]{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+  .loan-form .btn{grid-column:1/-1}
+  .btn{
+    padding:11px 14px;font-size:14.5px;font-weight:700;font-family:var(--hand);letter-spacing:.1em;
+    border:2px solid var(--ink-b);background:var(--ink-b);color:var(--paper);border-radius:2px;
+  }
+  .btn.ghost{background:none;color:var(--ink-b)}
+  .btn.ghost:hover{border-color:var(--ink-r);color:var(--ink-r)}
+  .btn:hover{background:#17327f;border-color:#17327f}
+  .btn.ghost:hover{background:none}
+  .loan-list{list-style:none;margin:0;padding:0;max-height:230px;overflow-y:auto}
+  .loan-item{display:flex;align-items:baseline;gap:9px;padding:8px 0;border-top:1px solid var(--rule);font-size:14px}
+  .loan-item .ld{flex:none;width:60px;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+  .loan-item .ln{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+  .loan-item .la{flex:none;font-family:var(--mono);font-weight:700;color:var(--ink-r-deep);font-variant-numeric:tabular-nums}
+  .loan-item .lx{flex:none;border:0;background:none;color:var(--ink-2);font-size:17px;
+    width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;
+    margin:-6px -10px -6px 0;font-family:var(--mono)}
+  .loan-item .lx:hover{color:var(--ink-r)}
+  .loan-empty{padding:10px 0;font-size:14px;color:var(--ink-2);border-top:1px solid var(--rule)}
+  .loan-sum{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:8px;border-top:2px solid var(--rule-strong);font-size:13.5px;color:var(--ink-2)}
+  .loan-sum b{font-family:var(--mono);color:var(--ink-r-deep);font-size:14.5px;font-variant-numeric:tabular-nums}
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
+  .set-row span{font-size:14.5px}
+  .set-row input{
+    width:110px;height:44px;padding:0 10px;text-align:right;font-family:var(--mono);font-size:15px;font-weight:700;
+    border:1.5px solid var(--rule-strong);border-radius:2px;background:#fff;color:var(--ink-b);
+    font-variant-numeric:tabular-nums;
+  }
+  .set-row input::-webkit-outer-spin-button,.set-row input::-webkit-inner-spin-button{appearance:none;margin:0}
+  .data-btns{display:flex;flex-wrap:wrap;gap:8px}
+  .btn.sm{padding:12px 14px;font-size:13.5px;letter-spacing:.04em}
+  .file-hint{margin:9px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+
+  /* ---------- 底部动作条 ---------- */
+  .dock{
+    position:fixed;left:0;right:0;bottom:0;z-index:45;
+    display:flex;gap:10px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(transparent,var(--paper-dim) 30%);
+  }
+  .dock .btn{flex:1.7;padding:14px 0;font-size:17px;letter-spacing:.2em;text-align:center;
+    box-shadow:0 2px 0 rgba(0,0,0,.18),0 8px 16px rgba(0,0,0,.16)}
+  .dock .btn.ghost{flex:1;font-size:15px;letter-spacing:.1em}
+  .dock .btn small{display:block;font-size:11px;letter-spacing:.3em;opacity:.85;font-family:var(--mono);font-weight:400;margin-top:1px}
+  .dock .btn.ghost small{opacity:1;color:var(--ink-2)}
+
+  /* ---------- 当天抽屉 ---------- */
+  .veil{position:fixed;inset:0;background:rgba(30,42,94,.35);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+  .veil.on{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;left:50%;bottom:0;z-index:55;width:min(560px,100%);
+    background:var(--paper);border:2px solid var(--ink-b);border-bottom:0;
+    transform:translate(-50%,105%);transition:transform .22s cubic-bezier(.2,.8,.25,1);
+    max-height:78vh;overflow-y:auto;padding:16px 18px calc(16px + env(safe-area-inset-bottom));
+    box-shadow:0 -10px 30px rgba(0,0,0,.26);
+  }
+  .drawer.on{transform:translate(-50%,0)}
+  .drawer-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
+  .drawer-head h2{margin:0;font-size:21px;font-weight:700;letter-spacing:.06em}
+  .drawer-head .wd{font-size:13px;color:var(--ink-2)}
+  .drawer-head .x{border:0;background:none;font-size:20px;color:var(--ink-2);font-family:var(--mono);line-height:1;
+    width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin:-8px -10px -8px 0}
+  .drawer-head .x:hover{color:var(--ink-r)}
+  .seg{display:grid;grid-template-columns:repeat(3,1fr);border:2px solid var(--ink-b)}
+  .seg-btn{
+    border:0;background:none;color:var(--ink-2);padding:14px 0;font-size:15.5px;font-weight:700;
+    font-family:var(--hand);letter-spacing:.14em;
+  }
+  .seg-btn + .seg-btn{border-left:2px solid var(--ink-b)}
+  .seg-btn.active{background:var(--ink-b);color:var(--paper)}
+  .frow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
+  .frow .lb{font-size:14px;color:var(--ink-2)}
+  .stepper{display:flex;align-items:center;gap:7px}
+  .stepper button{width:44px;height:44px;border:2px solid var(--ink-b);background:none;color:var(--ink-b);font-size:18px;font-family:var(--mono);border-radius:2px}
+  .stepper button:hover{background:rgba(29,63,158,.08)}
+  .stepper input{width:72px;height:44px;text-align:center;font-family:var(--mono);font-size:16px;font-weight:700;color:var(--ink-b);border:2px solid var(--rule-strong);background:#fff;border-radius:2px;font-variant-numeric:tabular-nums}
+  .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{appearance:none;margin:0}
+  .stepper .unit{font-size:12.5px;color:var(--ink-2)}
+  .quick{display:flex;gap:6px;margin-top:9px}
+  .quick button{flex:1;padding:14px 0;font-family:var(--mono);font-size:12.5px;border:1.5px solid var(--rule-strong);background:none;color:var(--ink-2);border-radius:2px}
+  .quick button:hover{border-color:var(--ink-b);color:var(--ink-b)}
+  .note-in{
+    width:100%;height:44px;margin-top:7px;padding:0 10px;font-size:15px;font-family:var(--sans);color:var(--ink-b);
+    border:1.5px solid var(--rule-strong);border-radius:2px;background:#fff;
+  }
+  .dfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:15px;padding-top:10px;border-top:1px solid var(--rule)}
+  .daypay{font-family:var(--mono);font-weight:700;font-size:14.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .text-btn{
+    border:0;background:none;font-family:var(--hand);font-size:13.5px;color:var(--ink-2);
+    text-decoration:underline;text-underline-offset:4px;
+    display:inline-flex;align-items:center;justify-content:center;
+    height:44px;padding:0 10px;margin:-10px;
+  }
+  .sheet h3 .text-btn{margin:-10px 0 -10px auto}
+  .text-btn:hover{color:var(--ink-r)}
+  .text-btn:disabled{opacity:.4;cursor:default;text-decoration:none}
+  .text-btn:disabled:hover{color:var(--ink-2)}
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));z-index:70;
+    transform:translate(-50%,10px);background:var(--ink-b);color:var(--paper);
+    font-size:13.5px;padding:9px 16px;border-radius:2px;max-width:84vw;text-align:center;
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+    box-shadow:0 8px 18px rgba(0,0,0,.28);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- 桌面双栏 ---------- */
+  @media (min-width:920px){
+    .card{margin:18px auto 96px}
+    .inner{padding:0 26px 26px 56px}
+    .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,0.92fr);gap:36px;align-items:start}
+    .faces{padding-top:14px}
+    .dock{left:50%;right:auto;transform:translateX(-50%);width:min(560px,94vw);padding-bottom:14px}
+    .drawer{padding-bottom:16px}
+    .ledger .num{font-size:86px}
+    .backwrap{columns:2;column-gap:36px}
+    .backsec{break-inside:avoid}
+  }
+  @media (max-width:560px){
+    .faces .face{font-size:14px;padding:11px 10px 9px;letter-spacing:.04em}
+    .sum .num{font-size:78px}
+    .sum .num small{font-size:34px}
+    .ledger .mo b{font-size:20px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+  }
+  @media print{
+    .faces,.dock,.ribbon .month-nav,.drawer,.veil{display:none}
+    body{background:#fff}
+  }
+</style>
+</head>
+<body>
+
+<header class="ribbon">
+  <span class="logo">考勤本</span>
+  <nav class="month-nav" aria-label="月份">
+    <button class="iconbtn" id="prevMonth" aria-label="上个月">‹</button>
+    <button class="monthbtn" id="monthLabel">2026 年 11 月</button>
+    <button class="iconbtn" id="nextMonth" aria-label="下个月">›</button>
+    <button class="today-btn" id="goToday">今天</button>
+  </nav>
+  <span class="sync-dot" id="syncDot" hidden></span>
+</header>
+
+<div class="card">
+  <div class="punch" aria-hidden="true"></div>
+  <div class="inner">
+
+    <div class="faces" role="tablist" aria-label="卡片面">
+      <button class="face" role="tab" id="tabA" aria-controls="panelA" aria-selected="true">出工单<span class="en">SIDE A</span></button>
+      <button class="face" role="tab" id="tabB" aria-controls="panelB" aria-selected="false">月历 · 账目<span class="en">SIDE B</span></button>
+      <button class="face" role="tab" id="tabC" aria-controls="panelC" aria-selected="false">卡背<span class="en">BACK</span></button>
+    </div>
+
+    <div class="cols">
+      <section class="panel on" id="panelA" role="tabpanel" aria-labelledby="tabA">
+        <div class="ledger">
+          <div class="mo">
+            <b id="moTitle">十一月账</b>
+            <span class="yr" id="moYr">2026-11</span>
+          </div>
+          <div class="sum">
+            <div class="num" id="amountBox"><small>¥</small><span id="totalWage">0</span></div>
+            <div class="behind" id="behindLine">还没记，从今天开始</div>
+          </div>
+          <div class="loanline" id="loanLine"></div>
+        </div>
+        <div class="tracks" id="trackList" role="list" aria-label="逐日出工单"></div>
+        <p class="wk-note" id="trackHint">点任意一行记那天的工；连点两下在出工 / 半天 / 歇班之间切换。</p>
+      </section>
+
+      <section class="panel" id="panelB" role="tabpanel" aria-labelledby="tabB" hidden>
+        <div class="cal">
+          <div class="cal-head" aria-hidden="true">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+          </div>
+          <div class="cal-grid" id="calGrid" role="grid" aria-label="月历"></div>
+        </div>
+        <div class="sheet">
+          <h3>每周汇总 <button type="button" class="text-btn" id="exportWeeks">导出</button></h3>
+          <table class="wk">
+            <thead><tr><th>周</th><th>天数</th><th>加班</th><th>工资</th></tr></thead>
+            <tbody id="weekBody"></tbody>
+          </table>
+          <p class="wk-note">按自然周（周一起）统计，只算本月的天。</p>
+        </div>
+        <div class="sheet">
+          <h3>按月统计 <button type="button" class="text-btn" id="exportMonths">导出</button></h3>
+          <table class="wk">
+            <thead><tr><th>月份</th><th>天数</th><th>加班</th><th>应得</th><th>借支</th><th>实发</th></tr></thead>
+            <tbody id="monthBody"></tbody>
+          </table>
+          <p class="wk-note">金额按当前的日薪、加班费设置回算，改设置会同时改变历史月份的数字。</p>
+        </div>
+        <div class="sheet">
+          <h3>2026 年累计</h3>
+          <table class="wk">
+            <tbody>
+              <tr><td>上班天数</td><td id="ytdDays">0</td></tr>
+              <tr><td>加班小时</td><td id="ytdOt">0</td></tr>
+              <tr><td>实发</td><td id="ytdPay">¥0</td></tr>
+              <tr id="ytdLoanWrap" hidden><td>借支</td><td id="ytdLoan">¥0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panelC" role="tabpanel" aria-labelledby="tabC" hidden>
+        <div class="backwrap">
+          <div class="backsec" aria-label="借支">
+            <h3>借支 <button type="button" class="text-btn" id="exportLoans">导出</button></h3>
+            <p class="tip">记预支的钱：日期决定扣哪个月的工资，记完自动从那个月的实发里扣。</p>
+            <form class="loan-form" id="loanForm">
+              <div class="lf">
+                <label class="lf-lb" for="loanDate">借支日期（扣这月的工资）</label>
+                <input type="date" id="loanDate">
+              </div>
+              <div class="lf">
+                <label class="lf-lb" for="loanAmount">金额（元）</label>
+                <input type="number" id="loanAmount" placeholder="0" min="0" step="1" inputmode="decimal">
+              </div>
+              <div class="lf wide">
+                <label class="lf-lb" for="loanNote">备注（选填）</label>
+                <input type="text" id="loanNote" placeholder="例：交房租、生活费、家里急用" maxlength="30">
+              </div>
+              <button type="submit" class="btn">记一笔借支</button>
+            </form>
+            <ul class="loan-list" id="loanList"></ul>
+            <div class="loan-sum">
+              <span>本月借支 <b id="loanMonthSum">¥0</b></span>
+              <span>今年 <b id="loanYearSum">¥0</b></span>
+            </div>
+          </div>
+
+          <div class="backsec" aria-label="工资设置">
+            <h3>工资设置</h3>
+            <div class="set-row">
+              <label class="lf-lb" for="dailyWage">日薪（元 / 天）</label>
+              <input id="dailyWage" type="number" min="0" step="1" inputmode="decimal">
+            </div>
+            <div class="set-row">
+              <label class="lf-lb" for="otRate">加班费（元 / 小时）</label>
+              <input id="otRate" type="number" min="0" step="1" inputmode="decimal">
+            </div>
+            <p class="tip">工资 = 出勤天数 × 日薪 ＋ 加班小时 × 加班费。加班费填 0 就只按天数算钱。</p>
+          </div>
+
+          <div class="backsec" aria-label="数据">
+            <h3>数据</h3>
+            <div class="data-btns">
+              <button type="button" class="btn ghost sm" id="exportCsv">导出本月表格</button>
+              <button type="button" class="btn ghost sm" id="exportJson">备份全部</button>
+              <button type="button" class="btn ghost sm" id="importJson">导入备份</button>
+              <button type="button" class="btn ghost sm" id="clearMonth">清空本月</button>
+            </div>
+            <p class="file-hint">记录存在这台设备的浏览器里，同步服务开着时会自动推到电脑。换设备或清理数据会丢，偶尔点一下「备份全部」。</p>
+            <input type="file" id="fileInput" accept="application/json,.json" hidden>
+            <div class="gh-box" aria-label="GitHub 云同步">
+              <div class="gh-h">GitHub 云同步<span class="gh-tag">跨网络 · 手机电脑互通</span></div>
+              <div class="gh-row">
+                <input id="ghToken" type="password" placeholder="粘贴 GitHub Token（需 gist 权限）" autocomplete="off">
+              </div>
+              <div class="gh-row">
+                <button type="button" class="btn sm" id="ghSave">保存并连接</button>
+                <button type="button" class="btn ghost sm" id="ghCreate">创建云端账本</button>
+                <button type="button" class="btn ghost sm" id="ghOff">断开</button>
+              </div>
+              <div class="gh-row" id="ghGistRow" hidden>
+                <input id="ghGistId" placeholder="云端账本 Gist ID" autocomplete="off">
+                <button type="button" class="btn ghost sm" id="ghGistSave">用这个账本</button>
+              </div>
+              <p class="gh-status" id="ghStatus">未配置 — 配好后手机电脑在任何网络都能自动同步。</p>
+              <p class="gh-tip">Token 获取：浏览器打开 github.com/settings/tokens → Generate new token (classic) → 勾选 gist → 生成后复制粘贴到上面。Token 只存在本机浏览器，不会上传。云端账本是隐藏 Gist，别把账本链接透露给别人。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</div>
+
+<div class="dock">
+  <button type="button" class="btn" id="dockToday">记今天<small id="dockDate">11月2日 · 出工</small></button>
+  <button type="button" class="btn ghost" id="dockFace">B面 · 账目<small>SIDE B</small></button>
+</div>
+
+<div class="veil" id="veil"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="当天记录" hidden>
+  <div class="drawer-head">
+    <h2 id="editTitle">11 月 2 日</h2>
+    <span class="wd" id="editWeekday">周一</span>
+    <button type="button" class="x" id="drawerClose" aria-label="收起">×</button>
+  </div>
+  <div class="seg" role="group" aria-label="当天出勤">
+    <button type="button" class="seg-btn" data-work="1">出工</button>
+    <button type="button" class="seg-btn" data-work="0.5">半天</button>
+    <button type="button" class="seg-btn" data-work="0">歇班</button>
+  </div>
+  <div class="frow">
+    <span class="lb">晚上加班</span>
+    <div class="stepper">
+      <button type="button" id="otMinus" aria-label="减少半小时">−</button>
+      <input id="otInput" type="number" min="0" step="0.5" value="0" inputmode="decimal" aria-label="加班小时">
+      <span class="unit">小时</span>
+      <button type="button" id="otPlus" aria-label="增加半小时">+</button>
+    </div>
+  </div>
+  <div class="quick" id="otQuick">
+    <button type="button" data-add="1">+1h</button>
+    <button type="button" data-add="2">+2h</button>
+    <button type="button" data-add="3">+3h</button>
+    <button type="button" data-add="4">+4h</button>
+  </div>
+  <div style="margin-top:14px">
+    <label class="lf-lb" for="noteInput" style="font-size:12.5px;color:var(--ink-2)">备注（选填）</label>
+    <input id="noteInput" class="note-in" type="text" placeholder="选填：夜班到 10 点、补卡、请假原因" maxlength="60">
+  </div>
+  <div class="dfoot">
+    <span class="daypay" id="dayPay">当日 未记录</span>
+    <button type="button" class="text-btn" id="clearDay">清除当天</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  var KEY = 'kq-book-v1';
+  var WD = ['周日','周一','周二','周三','周四','周五','周六'];
+  var $ = function(s, r){ return (r||document).querySelector(s); };
+  var $$ = function(s, r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+
+  function pad(n){ return n < 10 ? '0' + n : String(n); }
+  function keyOf(d){ return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+  function parseKey(k){
+    var p = k.split('-');
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+  function money(n){
+    var v = Math.round((Number(n)||0) * 100) / 100;
+    var s = v.toFixed(2);
+    if (/\.00$/.test(s)) return s.slice(0, -3);
+    if (/0$/.test(s)) return s.slice(0, -1);
+    return s;
+  }
+  function numOr(v, d){
+    var n = parseFloat(v);
+    return isFinite(n) && n >= 0 ? n : d;
+  }
+  function normWork(v){
+    var n = Number(v);
+    if (!isFinite(n)) n = v ? 1 : 0;
+    if (n >= 1) return 1;
+    if (n >= 0.5) return 0.5;
+    return 0;
+  }
+  function workLabel(w){ return w >= 1 ? '出工' : (w > 0 ? '半天' : '歇班'); }
+  function esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ---------- 状态 ---------- */
+  var state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [] };
+  var view = { y: 0, m: 0 };
+  var sel = '';
+
+  function sanitizeState(){
+    Object.keys(state.days).forEach(function(k){
+      var r = state.days[k];
+      if (r && typeof r === 'object') r.work = normWork(r.work);
+      else delete state.days[k];
+    });
+    state.loans = (state.loans || []).filter(function(l){
+      return l && typeof l.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(l.date);
+    }).map(function(l){
+      return {
+        id: String(l.id || ('l' + Math.random().toString(36).slice(2, 10))),
+        date: l.date,
+        amount: Math.max(0, Number(l.amount) || 0),
+        note: String(l.note || '').slice(0, 30)
+      };
+    });
+  }
+
+  function load(){
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (!s || typeof s !== 'object') return;
+      if (s.settings && typeof s.settings === 'object') {
+        state.settings.dailyWage = numOr(s.settings.dailyWage, 200);
+        state.settings.otRate = numOr(s.settings.otRate, 0);
+      }
+      if (s.days && typeof s.days === 'object') state.days = s.days;
+      if (Array.isArray(s.loans)) state.loans = s.loans;
+    } catch (e) { /* 存储损坏就当没记录 */ }
+    sanitizeState();
+  }
+
+  function applyState(d, at){
+    state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [] };
+    if (d && typeof d === 'object') {
+      if (d.settings && typeof d.settings === 'object') {
+        state.settings.dailyWage = numOr(d.settings.dailyWage, 200);
+        state.settings.otRate = numOr(d.settings.otRate, 0);
+      }
+      if (d.days && typeof d.days === 'object') state.days = d.days;
+      if (Array.isArray(d.loans)) state.loans = d.loans;
+    }
+    sanitizeState();
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+      localStorage.setItem(AT_KEY, String(at || Date.now()));
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function save(){
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+      localStorage.setItem(AT_KEY, String(Date.now()));
+    } catch (e) { toast('保存失败：浏览器存储不可用'); }
+    schedulePush();
+  }
+
+  /* ---------- 同步：GitHub 云（gh）> 局域网（lan）> 本地（local） ---------- */
+  var AT_KEY = KEY + '-at';
+  var IS_FILE = location.protocol === 'file:';
+  var SYNC = { available: false, ok: false, err: false, pending: 0, t: null, retryT: null, mode: 'local' };
+  var GH = { token: '', gistId: '', etag: '', login: '', pollT: null };
+  var GH_KEY = KEY + '-gh';
+  var GH_FILE = 'kq-book-data.json';
+
+  try {
+    var ghSaved = JSON.parse(localStorage.getItem(GH_KEY) || 'null');
+    if (ghSaved && ghSaved.token && ghSaved.gistId) { GH.token = ghSaved.token; GH.gistId = ghSaved.gistId; }
+  } catch (e) { /* 忽略 */ }
+
+  function ghSaveConfig(){
+    try { localStorage.setItem(GH_KEY, JSON.stringify({ token: GH.token, gistId: GH.gistId })); } catch (e) { /* 忽略 */ }
+  }
+
+  function syncMode(){
+    if (GH.token && GH.gistId) return 'gh';
+    if (!IS_FILE) return 'lan';
+    return 'local';
+  }
+
+  function localUpdatedAt(){ return Number(localStorage.getItem(AT_KEY)) || 0; }
+
+  function ghHeaders(extra){
+    var h = { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json' };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  function ghFileBody(){
+    return JSON.stringify({ updatedAt: localUpdatedAt() || Date.now(), data: state });
+  }
+
+  /* 拉取云端账本；带 ETag 条件请求，304 不计费 */
+  async function ghFetch(conditional){
+    var extra = {};
+    if (conditional && GH.etag) extra['If-None-Match'] = GH.etag;
+    var r = await fetch('https://api.github.com/gists/' + GH.gistId, { headers: ghHeaders(extra), cache: 'no-store' });
+    if (r.status === 304) { SYNC.ok = true; SYNC.err = false; return null; }
+    if (r.status === 401 || r.status === 403) throw new Error('token 失效或权限不够');
+    if (r.status === 404) throw new Error('云端账本不存在（Gist ID 不对或被删除）');
+    if (!r.ok) throw new Error('GitHub 暂时连不上（' + r.status + '）');
+    var et = r.headers.get('ETag');
+    if (et) GH.etag = et;
+    var j = await r.json();
+    var f = j.files && j.files[GH_FILE];
+    if (!f || !f.content) return null; /* 空账本：等本机数据推上去 */
+    return JSON.parse(f.content);
+  }
+
+  async function ghPush(){
+    var r = await fetch('https://api.github.com/gists/' + GH.gistId, {
+      method: 'PATCH',
+      headers: ghHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ files: (function(){ var f = {}; f[GH_FILE] = { content: ghFileBody() }; return f; })() })
+    });
+    if (!r.ok) throw new Error('推送失败（' + r.status + '）');
+    SYNC.ok = true; SYNC.err = false;
+  }
+
+  function renderGhStatus(txt, cls){
+    var el = $('#ghStatus');
+    if (!el) return;
+    el.textContent = txt;
+    el.className = 'gh-status' + (cls ? ' ' + cls : '');
+  }
+
+  function renderGhUI(){
+    var hasCfg = !!(GH.token && GH.gistId);
+    var row = $('#ghGistRow');
+    if (row) row.hidden = !GH.token;
+    var tk = $('#ghToken');
+    if (tk && !tk.value) tk.placeholder = GH.token ? 'Token 已保存（重填可更换）' : '粘贴 GitHub Token（需 gist 权限）';
+    if (hasCfg) {
+      renderGhStatus('已连接 GitHub · ' + (GH.login || '账号') + ' · 账本 ' + GH.gistId.slice(0, 7) + '…（自动同步中）', 'ok');
+    } else if (GH.token) {
+      renderGhStatus('Token 已保存 — 点「创建云端账本」生成，或在下方填已有 Gist ID。', '');
+    } else {
+      renderGhStatus('未配置 — 配好后手机电脑在任何网络都能自动同步。', '');
+    }
+  }
+
+  function renderSync(){
+    var dot = $('#syncDot');
+    if (!dot) return;
+    dot.hidden = false;
+    dot.className = 'sync-dot';
+    var tip;
+    if (SYNC.mode === 'gh') {
+      if (SYNC.pending > 0) { dot.classList.add('sync-busy'); tip = '正在同步到 GitHub 云…'; }
+      else if (SYNC.err) { dot.classList.add('sync-err'); tip = 'GitHub 同步暂时失败，会自动重试；改动已先存在本机。'; }
+      else { dot.classList.add('sync-on'); tip = 'GitHub 云同步已连接' + (GH.login ? '（' + GH.login + '）' : '') + '，手机电脑跨网络自动同步'; }
+    } else if (!SYNC.available) {
+      tip = '本地模式：数据只存这台设备。可与手机同步：①电脑运行「启动同步服务.bat」（同一 WiFi）；②或在本页卡背配 GitHub 云同步（任何网络）。';
+    } else if (SYNC.pending > 0) {
+      dot.classList.add('sync-busy'); tip = '正在同步…';
+    } else if (SYNC.err) {
+      dot.classList.add('sync-err'); tip = '同步暂时失败，会自动重试；改动已先存在本机。';
+    } else {
+      dot.classList.add('sync-on'); tip = '已连接同步服务，电脑和手机自动同步';
+    }
+    dot.title = tip;
+    dot.setAttribute('role', 'img');
+    dot.setAttribute('aria-label', tip);
+  }
+
+  function schedulePush(){
+    if (syncMode() === 'local') return;
+    clearTimeout(SYNC.t);
+    SYNC.t = setTimeout(pushNow, 600);
+  }
+
+  function ghSchedulePoll(){
+    clearInterval(GH.pollT);
+    if (syncMode() !== 'gh') return;
+    GH.pollT = setInterval(pollRemote, 60000);
+  }
+
+  async function pushNow(){
+    if (syncMode() === 'local') return;
+    SYNC.pending++;
+    renderSync();
+    try {
+      if (syncMode() === 'gh') {
+        await ghPush();
+      } else {
+        var r2 = await fetch('api/data', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updatedAt: localUpdatedAt() || Date.now(), data: state })
+        });
+        if (!r2.ok) throw new Error('bad status');
+      }
+      SYNC.ok = true; SYNC.err = false;
+    } catch (e) {
+      SYNC.err = true;
+      clearTimeout(SYNC.retryT);
+      SYNC.retryT = setTimeout(pushNow, 5000);
+    }
+    SYNC.pending--;
+    renderSync();
+  }
+
+  /* 用远端数据做 LWW 合并（gh / lan 共用） */
+  function adoptRemote(j){
+    var serverAt = Number(j.updatedAt) || 0;
+    if (j.data && serverAt > localUpdatedAt()) {
+      applyState(j.data, serverAt);
+      refresh();
+      var a = document.activeElement;
+      if (!a || a.tagName !== 'INPUT') { renderSettings(); renderDrawer(); }
+      toast('已同步其他设备的最新记录');
+      return true;
+    }
+    return false;
+  }
+
+  async function syncBoot(){
+    SYNC.mode = syncMode();
+    if (SYNC.mode === 'gh') {
+      try {
+        var u = await fetch('https://api.github.com/user', { headers: ghHeaders(), cache: 'no-store' });
+        if (!u.ok) throw new Error('token 无效');
+        GH.login = (await u.json()).login || '';
+        var j = await ghFetch(true);
+        SYNC.available = true;
+        var serverAt = j ? (Number(j.updatedAt) || 0) : 0;
+        if (j && j.data && serverAt > localUpdatedAt()) {
+          applyState(j.data, serverAt);
+          renderSettings(); renderDrawer(); refresh();
+        } else if (localUpdatedAt() > serverAt) {
+          await pushNow();
+        } else { SYNC.ok = true; }
+      } catch (e) {
+        SYNC.available = false; SYNC.err = true;
+        renderGhStatus('GitHub 连接失败：' + (e.message || '网络问题'), 'bad');
+      }
+      renderSync(); renderGhUI();
+      ghSchedulePoll();
+      return;
+    }
+    if (IS_FILE) { SYNC.available = false; renderSync(); return; }
+    try {
+      var r = await fetch('api/data', { cache: 'no-store' });
+      if (!r.ok) throw new Error('no server');
+      var j2 = await r.json();
+      SYNC.available = true;
+      var serverAt2 = Number(j2.updatedAt) || 0;
+      if (j2.data && serverAt2 > localUpdatedAt()) {
+        applyState(j2.data, serverAt2);
+        renderSettings();
+        renderDrawer();
+        refresh();
+      } else if (localUpdatedAt() > serverAt2) {
+        await pushNow();
+      } else {
+        SYNC.ok = true;
+      }
+    } catch (e) {
+      SYNC.available = false;
+    }
+    renderSync();
+    if (SYNC.available) setInterval(pollRemote, 15000);
+  }
+
+  async function pollRemote(){
+    var m = syncMode();
+    if (m === 'local' || SYNC.pending > 0) return;
+    try {
+      if (m === 'gh') {
+        var j = await ghFetch(true);
+        if (j) adoptRemote(j);
+      } else {
+        var r = await fetch('api/data', { cache: 'no-store' });
+        if (!r.ok) return;
+        var j2 = await r.json();
+        adoptRemote(j2);
+      }
+    } catch (e) {
+      SYNC.err = true;
+      renderSync();
+    }
+  }
+
+  /* 回到前台立刻拉一次（云端模式 60s 轮询的即时补充） */
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden && syncMode() !== 'local') {
+      clearTimeout(SYNC.retryT);
+      SYNC.retryT = setTimeout(pollRemote, 800);
+    }
+  });
+
+  /* ---------- GitHub 云同步设置 ---------- */
+  async function ghConnect(token){
+    GH.token = token;
+    try {
+      var u = await fetch('https://api.github.com/user', { headers: ghHeaders(), cache: 'no-store' });
+      if (u.status === 401) throw new Error('Token 无效（检查是否复制完整、是否已过期）');
+      if (!u.ok) throw new Error('GitHub 暂时连不上（' + u.status + '）');
+      GH.login = (await u.json()).login || '';
+      ghSaveConfig();
+      renderGhUI();
+      return GH.login;
+    } catch (e) {
+      GH.token = '';
+      throw e;
+    }
+  }
+
+  async function ghCreateGist(){
+    var r = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: ghHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        description: 'kq-book 出工记账本 · 云端账本',
+        public: false,
+        files: (function(){ var f = {}; f[GH_FILE] = { content: ghFileBody() }; return f; })()
+      })
+    });
+    if (r.status === 401) throw new Error('Token 无效或缺 gist 权限');
+    if (!r.ok) throw new Error('创建失败（' + r.status + '）');
+    var j = await r.json();
+    GH.gistId = j.id;
+    GH.etag = '';
+    ghSaveConfig();
+    SYNC.mode = 'gh';
+    SYNC.available = true;
+    renderGhUI();
+    ghSchedulePoll();
+    pushNow();
+    return j.id;
+  }
+
+  /* ---------- 统计 ---------- */
+  function loansIn(year, month){
+    var sum = 0;
+    state.loans.forEach(function(l){
+      if (Number(l.date.slice(0, 4)) !== year) return;
+      if (month && Number(l.date.slice(5, 7)) !== month) return;
+      sum += Number(l.amount) || 0;
+    });
+    return sum;
+  }
+
+  function stats(){
+    var dim = new Date(view.y, view.m + 1, 0).getDate();
+    var todayK = keyOf(new Date());
+    var work = 0, ot = 0, rest = 0, blank = 0;
+    for (var d = 1; d <= dim; d++) {
+      var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
+      var r = state.days[k];
+      if (!r) { if (k <= todayK) blank++; continue; }
+      if (r.work > 0) work += r.work; else rest++;
+      ot += Number(r.ot) || 0;
+    }
+    var daily = numOr(state.settings.dailyWage, 0);
+    var rate = numOr(state.settings.otRate, 0);
+    var basePay = work * daily;
+    var otPay = ot * rate;
+    var gross = basePay + otPay;
+    var loanMonth = loansIn(view.y, view.m + 1);
+    return { dim: dim, work: work, ot: ot, rest: rest, blank: blank,
+             basePay: basePay, otPay: otPay, gross: gross,
+             loanMonth: loanMonth, net: gross - loanMonth,
+             daily: daily, rate: rate };
+  }
+
+  function yearStats(y){
+    var prefix = String(y) + '-';
+    var days = 0, ot = 0;
+    Object.keys(state.days).forEach(function(k){
+      if (k.indexOf(prefix) !== 0) return;
+      var r = state.days[k];
+      days += Number(r.work) || 0;
+      ot += Number(r.ot) || 0;
+    });
+    var daily = numOr(state.settings.dailyWage, 0);
+    var rate = numOr(state.settings.otRate, 0);
+    var pay = days * daily + ot * rate;
+    var loan = loansIn(y, 0);
+    return { days: days, ot: ot, pay: pay, loan: loan, net: pay - loan };
+  }
+
+  function weekStats(){
+    var dim = new Date(view.y, view.m + 1, 0).getDate();
+    var map = {}, order = [];
+    for (var d = 1; d <= dim; d++) {
+      var date = new Date(view.y, view.m, d);
+      var dow = (date.getDay() + 6) % 7;
+      var monday = new Date(view.y, view.m, d - dow);
+      var key = keyOf(monday);
+      if (!map[key]) {
+        map[key] = { start: monday,
+          end: new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6),
+          days: 0, ot: 0 };
+        order.push(key);
+      }
+      var r = state.days[view.y + '-' + pad(view.m + 1) + '-' + pad(d)];
+      if (!r) continue;
+      map[key].days += Number(r.work) || 0;
+      map[key].ot += Number(r.ot) || 0;
+    }
+    var daily = numOr(state.settings.dailyWage, 0);
+    var rate = numOr(state.settings.otRate, 0);
+    return order.map(function(k){
+      var w = map[k];
+      return { key: k, start: w.start, end: w.end, days: w.days, ot: w.ot,
+               pay: w.days * daily + w.ot * rate };
+    });
+  }
+
+  function monthList(){
+    var months = {};
+    function bucket(ym){
+      if (!months[ym]) months[ym] = { days: 0, ot: 0, loan: 0 };
+      return months[ym];
+    }
+    Object.keys(state.days).forEach(function(k){
+      var r = state.days[k];
+      var ym = k.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(ym)) return;
+      var m = bucket(ym);
+      m.days += Number(r.work) || 0;
+      m.ot += Number(r.ot) || 0;
+    });
+    state.loans.forEach(function(l){
+      var ym = l.date.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(ym)) return;
+      bucket(ym).loan += Number(l.amount) || 0;
+    });
+    var daily = numOr(state.settings.dailyWage, 0);
+    var rate = numOr(state.settings.otRate, 0);
+    return Object.keys(months).sort().map(function(ym){
+      var m = months[ym];
+      var gross = m.days * daily + m.ot * rate;
+      return { ym: ym, days: m.days, ot: m.ot, gross: gross, loan: m.loan, net: gross - m.loan };
+    });
+  }
+
+  /* ---------- 渲染 ---------- */
+  function renderMonthLabel(){
+    $('#monthLabel').textContent = view.y + ' 年 ' + (view.m + 1) + ' 月';
+    $('#moTitle').textContent = (view.m + 1) + ' 月账';
+    $('#moYr').textContent = view.y + '-' + pad(view.m + 1);
+  }
+
+  function renderLedger(){
+    var s = stats();
+    $('#totalWage').textContent = money(s.net);
+    $('#amountBox').classList.toggle('neg', s.net < 0);
+    var behind;
+    if (s.loanMonth > 0) {
+      behind = '应得 <b>¥' + money(s.gross) + '</b>　·　借支 <span class="minus">−¥' + money(s.loanMonth) + '</span>';
+    } else {
+      behind = '出工 <b>' + money(s.work) + '</b> 天 × ¥' + money(s.daily);
+      if (s.ot > 0) behind += ' ＋ 加班 <b>' + money(s.ot) + '</b> 点';
+    }
+    $('#behindLine').innerHTML = behind;
+  }
+
+  function renderLoanLine(){
+    var s = stats();
+    var el = $('#loanLine');
+    if (s.loanMonth > 0 || state.loans.length) {
+      el.innerHTML = '借支 <b>' + s.loanMonth + ' 元</b>（今年 ' + money(loansIn(view.y, 0)) + '）'
+        + '<button type="button" class="go" data-goto="C">记一笔 / 看笔笔</button>';
+    } else {
+      el.innerHTML = '有预支就记一笔借支，月底自动从实发里扣'
+        + '<button type="button" class="go" data-goto="C">去记借支</button>';
+    }
+  }
+
+  function dstr(dt){ return (dt.getMonth() + 1) + '/' + dt.getDate(); }
+
+  function renderTracks(){
+    var s = stats();
+    var todayK = keyOf(new Date());
+    var html = '';
+    var listed = 0;
+    for (var d = 1; d <= s.dim; d++) {
+      var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
+      var r = state.days[k];
+      var w = r ? normWork(r.work) : -1;
+      var otH = r ? (Number(r.ot) || 0) : 0;
+      var date = parseKey(k);
+      var dow = WD[date.getDay()];
+      var isToday = k === todayK;
+      var cls = 'track';
+      if (r) cls += (w >= 1 ? '' : (w > 0 ? ' half' : ' rest'));
+      else cls += ' rest';
+      if (isToday) cls += ' today';
+      if (k === sel) cls += ' sel';
+
+      var stateTxt = r ? workLabel(w) : '未记';
+      var pay = r ? (w * s.daily + otH * s.rate) : 0;
+
+      html += '<button type="button" class="' + cls + '" data-date="' + k + '" role="listitem"'
+        + ' aria-label="' + esc(d + '日 ' + stateTxt + (otH ? ' 加班' + money(otH) + '小时' : '')) + '">'
+        + '<span class="no">' + pad(d) + '</span>'
+        + '<span class="dt">' + d + '日<small>' + dow + (isToday ? ' · 今' : '') + '</small></span>'
+        + '<span class="nm">' + stateTxt + '</span>'
+        + (otH ? '<span class="ot">+' + money(otH) + '点</span>' : '')
+        + '<span class="lead" aria-hidden="true"></span>'
+        + '<span class="amt">' + (r ? '¥' + money(pay) : '—') + '</span>'
+        + (r && r.note ? '<span class="note">' + esc(r.note) + '</span>' : '')
+        + '</button>';
+      listed++;
+    }
+    $('#trackList').innerHTML = html;
+    $('#trackHint').hidden = listed > 0;
+  }
+
+  function renderCalendar(){
+    var grid = $('#calGrid');
+    var first = new Date(view.y, view.m, 1);
+    var startDow = (first.getDay() + 6) % 7;
+    var dim = new Date(view.y, view.m + 1, 0).getDate();
+    var todayK = keyOf(new Date());
+    var html = '';
+    var i, d;
+    for (i = 0; i < startDow; i++) html += '<span class="day-blank" aria-hidden="true"></span>';
+    for (d = 1; d <= dim; d++) {
+      var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
+      var wd = new Date(view.y, view.m, d).getDay();
+      var r = state.days[k];
+      var w = r ? normWork(r.work) : -1;
+      var otH = r ? (Number(r.ot) || 0) : 0;
+      var cls = 'day';
+      if (r) cls += w >= 1 ? ' work' : (w > 0 ? ' half' : ' rest');
+      if (wd === 0 || wd === 6) cls += ' weekend';
+      if (k === todayK) cls += ' today';
+      if (k === sel) cls += ' sel';
+      var label = (view.m + 1) + '月' + d + '日 ' + WD[wd] + '，';
+      label += r ? workLabel(w) : '未记录';
+      if (otH) label += '，加班 ' + money(otH) + ' 小时';
+      if (r && r.note) label += '，备注 ' + r.note;
+      html += '<button type="button" class="' + cls + '" data-date="' + k + '" role="gridcell"'
+        + ' aria-label="' + esc(label) + '"' + (k === sel ? ' aria-current="date"' : '') + '>'
+        + '<span class="dnum">' + d + '</span>'
+        + (w === 0.5 ? '<span class="halfmark" aria-hidden="true">½</span>' : '')
+        + (otH ? '<span class="otdot" aria-hidden="true"></span>' : '')
+        + '</button>';
+    }
+    grid.innerHTML = html;
+  }
+
+  function renderWeeks(){
+    var rows = weekStats();
+    var todayK = keyOf(new Date());
+    var body = $('#weekBody');
+    var table = body.closest('table');
+    var oldFoot = table.querySelector('tfoot');
+    if (oldFoot) oldFoot.parentNode.removeChild(oldFoot);
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="4">这个月还没有记录</td></tr>';
+      return;
+    }
+    var totals = { days: 0, ot: 0, pay: 0 };
+    body.innerHTML = rows.map(function(w, i){
+      totals.days += w.days; totals.ot += w.ot; totals.pay += w.pay;
+      var cur = todayK >= keyOf(w.start) && todayK <= keyOf(w.end);
+      return '<tr' + (cur ? ' class="cur"' : '') + '>'
+        + '<td>' + (i + 1) + '<span class="rng">' + dstr(w.start) + '–' + dstr(w.end) + '</span></td>'
+        + '<td>' + money(w.days) + '</td>'
+        + '<td>' + (w.ot > 0 ? money(w.ot) : '—') + '</td>'
+        + '<td>' + money(w.pay) + '</td></tr>';
+    }).join('');
+    var foot = document.createElement('tfoot');
+    foot.innerHTML = '<tr><td>合计</td><td>' + money(totals.days) + '</td>'
+      + '<td>' + (totals.ot > 0 ? money(totals.ot) : '—') + '</td>'
+      + '<td>' + money(totals.pay) + '</td></tr>';
+    table.appendChild(foot);
+  }
+
+  function renderMonthStats(){
+    var rows = monthList();
+    var body = $('#monthBody');
+    var table = body.closest('table');
+    var oldFoot = table.querySelector('tfoot');
+    if (oldFoot) oldFoot.parentNode.removeChild(oldFoot);
+    var curYm = view.y + '-' + pad(view.m + 1);
+    var todayYm = (function(){ var t = new Date(); return t.getFullYear() + '-' + pad(t.getMonth() + 1); })();
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6">还没有记录，从今天的打卡开始</td></tr>';
+      return;
+    }
+    var tot = { days: 0, ot: 0, gross: 0, loan: 0, net: 0 };
+    body.innerHTML = rows.map(function(m){
+      tot.days += m.days; tot.ot += m.ot; tot.gross += m.gross; tot.loan += m.loan; tot.net += m.net;
+      var cur = m.ym === curYm;
+      return '<tr' + (cur ? ' class="cur"' : '') + '>'
+        + '<td>' + m.ym + (m.ym === todayYm ? ' <span class="rng">本月</span>' : '') + '</td>'
+        + '<td>' + money(m.days) + '</td>'
+        + '<td>' + (m.ot > 0 ? money(m.ot) : '—') + '</td>'
+        + '<td>' + money(m.gross) + '</td>'
+        + '<td>' + (m.loan > 0 ? money(m.loan) : '—') + '</td>'
+        + '<td>' + money(m.net) + '</td></tr>';
+    }).join('');
+    var n = rows.length;
+    var foot = document.createElement('tfoot');
+    foot.innerHTML = '<tr><td>全部合计</td><td>' + money(tot.days) + '</td><td>'
+      + (tot.ot > 0 ? money(tot.ot) : '—') + '</td><td>' + money(tot.gross) + '</td><td>'
+      + (tot.loan > 0 ? money(tot.loan) : '—') + '</td><td>' + money(tot.net) + '</td></tr>'
+      + '<tr><td class="rng">月均（' + n + ' 个月）</td><td>' + money(tot.days / n) + '</td><td>'
+      + money(tot.ot / n) + '</td><td>' + money(tot.gross / n) + '</td><td>'
+      + money(tot.loan / n) + '</td><td>' + money(tot.net / n) + '</td></tr>';
+    table.appendChild(foot);
+  }
+
+  function renderYtd(){
+    var y = yearStats(view.y);
+    $('#ytdDays').textContent = money(y.days);
+    $('#ytdOt').textContent = money(y.ot);
+    $('#ytdPay').textContent = '¥' + money(y.net);
+    $('#ytdLoanWrap').hidden = y.loan <= 0;
+    $('#ytdLoan').textContent = '¥' + money(y.loan);
+  }
+
+  function renderLoans(){
+    var prefix = view.y + '-' + pad(view.m + 1) + '-';
+    var list = state.loans.filter(function(l){ return l.date.indexOf(prefix) === 0; })
+      .sort(function(a, b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+    var box = $('#loanList');
+    if (!list.length) {
+      box.innerHTML = '<li class="loan-empty">本月没有借支，实发就是应得</li>';
+    } else {
+      box.innerHTML = list.map(function(l){
+        var dt = parseKey(l.date);
+        var full = dt.getFullYear() + '年' + (dt.getMonth() + 1) + '月' + dt.getDate() + '日';
+        return '<li class="loan-item">'
+          + '<span class="ld" title="' + full + '">' + (dt.getMonth() + 1) + '月' + dt.getDate() + '日</span>'
+          + '<span class="ln">' + esc(l.note || '借支') + '</span>'
+          + '<span class="la">−¥' + money(l.amount) + '</span>'
+          + '<button type="button" class="lx" data-id="' + esc(l.id) + '" aria-label="删除这笔借支">×</button>'
+          + '</li>';
+      }).join('');
+    }
+    $('#loanMonthSum').textContent = '¥' + money(loansIn(view.y, view.m + 1));
+    $('#loanYearSum').textContent = '¥' + money(loansIn(view.y, 0));
+  }
+
+  function renderSettings(){
+    $('#dailyWage').value = state.settings.dailyWage;
+    $('#otRate').value = state.settings.otRate;
+  }
+
+  function renderDock(){
+    var t = keyOf(new Date());
+    var r = state.days[t];
+    var w = r ? normWork(r.work) : -1;
+    var d = new Date();
+    $('#dockDate').textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日 · ' + (r ? workLabel(w) : '未记');
+    $('#dockFace').innerHTML = $('#panelA').classList.contains('on')
+      ? 'B面 · 账目<small>SIDE B</small>'
+      : 'A面 · 出工<small>SIDE A</small>';
+  }
+
+  function refresh(){
+    renderMonthLabel();
+    renderLedger();
+    renderLoanLine();
+    renderTracks();
+    renderCalendar();
+    renderWeeks();
+    renderMonthStats();
+    renderYtd();
+    renderLoans();
+    renderDock();
+    updateDayPay();
+  }
+
+  /* ---------- 当天抽屉 ---------- */
+  var drawerOpen = false;
+
+  function updateDayPay(){
+    var r = state.days[sel];
+    var daily = numOr(state.settings.dailyWage, 0);
+    var rate = numOr(state.settings.otRate, 0);
+    var w = r ? normWork(r.work) : 0;
+    var pay = r ? (w * daily + (Number(r.ot) || 0) * rate) : 0;
+    $('#dayPay').textContent = r ? '当日 ¥' + money(pay) : '当日 未记录';
+    $('#clearDay').disabled = !r;
+    var curW = r ? w : -1;
+    $$('.seg-btn').forEach(function(b){
+      var on = curW === Number(b.dataset.work);
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function renderDrawer(){
+    var d = parseKey(sel);
+    var dow = d.getDay();
+    $('#editTitle').textContent = (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日';
+    $('#editWeekday').textContent = WD[dow] + ((dow === 0 || dow === 6) ? ' · 周末' : '');
+    var r = state.days[sel];
+    $('#otInput').value = r ? (Number(r.ot) || 0) : 0;
+    $('#noteInput').value = r ? (r.note || '') : '';
+    updateDayPay();
+  }
+
+  function openDrawer(){
+    if (drawerOpen) return;
+    drawerOpen = true;
+    $('#drawer').hidden = false;
+    requestAnimationFrame(function(){
+      $('#veil').classList.add('on');
+      $('#drawer').classList.add('on');
+    });
+  }
+  function closeDrawer(){
+    if (!drawerOpen) return;
+    drawerOpen = false;
+    $('#veil').classList.remove('on');
+    $('#drawer').classList.remove('on');
+    setTimeout(function(){ if (!drawerOpen) $('#drawer').hidden = true; }, 240);
+  }
+
+  function setRecord(key, patch){
+    var cur = state.days[key];
+    var next = cur ? { work: normWork(cur.work), ot: Number(cur.ot) || 0, note: cur.note || '' }
+                   : { work: 1, ot: 0, note: '' };
+    if (patch) {
+      if (typeof patch.work !== 'undefined') next.work = normWork(patch.work);
+      if (typeof patch.ot !== 'undefined') next.ot = Math.max(0, Number(patch.ot) || 0);
+      if (typeof patch.note !== 'undefined') next.note = String(patch.note).slice(0, 60);
+    }
+    state.days[key] = next;
+    save();
+    refresh();
+    return next;
+  }
+
+  function deleteRecord(key){
+    if (!state.days[key]) return;
+    delete state.days[key];
+    save();
+    refresh();
+  }
+
+  /* ---------- 提示 ---------- */
+  var toastTimer = null;
+  function toast(msg){
+    var t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+  }
+
+  /* ---------- 月份 ---------- */
+  function setMonth(y, m, keepSel){
+    view.y = y; view.m = m;
+    if (!keepSel || !sel || parseKey(sel).getMonth() !== m || parseKey(sel).getFullYear() !== y) {
+      var t = new Date();
+      sel = (t.getFullYear() === y && t.getMonth() === m) ? keyOf(t) : (y + '-' + pad(m + 1) + '-01');
+    }
+    renderDrawer();
+    refresh();
+  }
+  function shiftMonth(delta){
+    var m = view.m + delta, y = view.y;
+    while (m < 0) { m += 12; y--; }
+    while (m > 11) { m -= 12; y++; }
+    setMonth(y, m, false);
+  }
+
+  /* ---------- 下载 ---------- */
+  function download(text, filename, mime){
+    var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+  }
+  function csvCell(v){ return '"' + String(v).replace(/"/g, '""') + '"'; }
+
+  function exportCsv(){
+    var s = stats();
+    var rows = [['日期','星期','出勤','加班小时','备注','当日工资']];
+    var sum = 0;
+    for (var d = 1; d <= s.dim; d++) {
+      var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
+      var r = state.days[k];
+      if (!r) continue;
+      var w = normWork(r.work);
+      var pay = w * s.daily + (Number(r.ot) || 0) * s.rate;
+      sum += pay;
+      rows.push([k, WD[parseKey(k).getDay()], workLabel(w),
+                 money(Number(r.ot) || 0), r.note || '', money(pay)]);
+    }
+    rows.push(['合计', '', '出工 ' + money(s.work) + ' 天', money(s.ot), '', money(sum)]);
+    download('\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
+      '考勤_' + view.y + '-' + pad(view.m + 1) + '.csv', 'text/csv;charset=utf-8');
+    toast('已导出本月表格');
+  }
+
+  function exportWeeks(){
+    var rows = weekStats();
+    if (!rows.length) { toast('这个月还没有记录'); return; }
+    var out = [['周次','开始','结束','出勤天数','加班小时','工资']];
+    var tot = { days: 0, ot: 0, pay: 0 };
+    rows.forEach(function(w, i){
+      tot.days += w.days; tot.ot += w.ot; tot.pay += w.pay;
+      out.push(['第 ' + (i + 1) + ' 周', keyOf(w.start), keyOf(w.end),
+                money(w.days), money(w.ot), money(w.pay)]);
+    });
+    out.push(['合计', '', '', money(tot.days), money(tot.ot), money(tot.pay)]);
+    download('\uFEFF' + out.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
+      '考勤周汇总_' + view.y + '-' + pad(view.m + 1) + '.csv', 'text/csv;charset=utf-8');
+    toast('已导出每周汇总');
+  }
+
+  function exportMonths(){
+    var rows = monthList();
+    if (!rows.length) { toast('还没有记录'); return; }
+    var out = [['月份','出勤天数','加班小时','应得','借支','实发']];
+    var t = { days: 0, ot: 0, gross: 0, loan: 0, net: 0 };
+    rows.forEach(function(m){
+      t.days += m.days; t.ot += m.ot; t.gross += m.gross; t.loan += m.loan; t.net += m.net;
+      out.push([m.ym, money(m.days), money(m.ot), money(m.gross), money(m.loan), money(m.net)]);
+    });
+    var n = rows.length;
+    out.push(['全部合计', money(t.days), money(t.ot), money(t.gross), money(t.loan), money(t.net)]);
+    out.push(['月均', money(t.days / n), money(t.ot / n), money(t.gross / n), money(t.loan / n), money(t.net / n)]);
+    download('\uFEFF' + out.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
+      '按月统计_' + view.y + '.csv', 'text/csv;charset=utf-8');
+    toast('已导出按月统计');
+  }
+
+  function exportLoans(){
+    if (!state.loans.length) { toast('还没有借支记录'); return; }
+    var list = state.loans.slice().sort(function(a, b){ return a.date < b.date ? -1 : 1; });
+    var out = [['日期','借支金额','备注']];
+    var sum = 0;
+    list.forEach(function(l){
+      sum += Number(l.amount) || 0;
+      out.push([l.date, money(l.amount), l.note || '']);
+    });
+    out.push(['合计', money(sum), '']);
+    download('\uFEFF' + out.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
+      '借支记录_' + view.y + '.csv', 'text/csv;charset=utf-8');
+    toast('已导出借支记录');
+  }
+
+  function exportJson(){
+    var payload = { app: 'kq-book', version: 1, exportedAt: new Date().toISOString(), data: state };
+    download(JSON.stringify(payload, null, 2),
+      '考勤本备份_' + keyOf(new Date()) + '.json', 'application/json;charset=utf-8');
+    toast('已导出备份');
+  }
+
+  function importJson(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var obj;
+      try { obj = JSON.parse(String(reader.result)); }
+      catch (e) { toast('这个文件读不出来，确认是备份的 .json'); return; }
+      var data = obj && obj.data ? obj.data : (obj && (obj.days || obj.loans) ? obj : null);
+      if (!data) { toast('文件里没有考勤数据'); return; }
+      var incoming = data.days || {};
+      var count = Object.keys(incoming).length;
+      if (!count && !(Array.isArray(data.loans) && data.loans.length)) {
+        toast('备份里没有记录');
+        return;
+      }
+      if (!window.confirm('导入 ' + count + ' 天记录、' + ((data.loans || []).length)
+          + ' 笔借支，和现有数据合并（同一天以备份为准）。继续？')) return;
+      Object.keys(incoming).forEach(function(k){
+        var r = incoming[k];
+        if (!r || typeof r !== 'object') return;
+        state.days[k] = {
+          work: normWork(r.work),
+          ot: Math.max(0, Number(r.ot) || 0),
+          note: String(r.note || '').slice(0, 60)
+        };
+      });
+      if (data.settings) {
+        state.settings.dailyWage = numOr(data.settings.dailyWage, state.settings.dailyWage);
+        state.settings.otRate = numOr(data.settings.otRate, state.settings.otRate);
+      }
+      if (Array.isArray(data.loans)) {
+        var seen = {};
+        state.loans.forEach(function(l){ seen[l.id] = true; });
+        data.loans.forEach(function(l){
+          if (!l || typeof l.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(l.date)) return;
+          var id = String(l.id || ('l' + Math.random().toString(36).slice(2, 10)));
+          if (seen[id]) return;
+          state.loans.push({ id: id, date: l.date, amount: Math.max(0, Number(l.amount) || 0),
+                             note: String(l.note || '').slice(0, 30) });
+        });
+      }
+      save();
+      renderSettings();
+      renderDrawer();
+      refresh();
+      toast('已导入 ' + count + ' 天记录');
+    };
+    reader.onerror = function(){ toast('读取文件失败'); };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  /* ---------- 面切换 ---------- */
+  function showFace(id){
+    ['A','B','C'].forEach(function(f){
+      var tab = $('#tab' + f);
+      var panel = $('#panel' + f);
+      var on = f === id;
+      tab.setAttribute('aria-selected', String(on));
+      panel.classList.toggle('on', on);
+      panel.hidden = !on;
+    });
+  }
+
+  /* ---------- 事件 ---------- */
+  $('#prevMonth').addEventListener('click', function(){ shiftMonth(-1); });
+  $('#nextMonth').addEventListener('click', function(){ shiftMonth(1); });
+  $('#monthLabel').addEventListener('click', function(){
+    var t = new Date();
+    setMonth(t.getFullYear(), t.getMonth(), false);
+  });
+  $('#goToday').addEventListener('click', function(){
+    var t = new Date();
+    view.y = t.getFullYear(); view.m = t.getMonth();
+    sel = keyOf(t);
+    renderDrawer();
+    refresh();
+  });
+
+  $('#tabA').addEventListener('click', function(){ showFace('A'); });
+  $('#tabB').addEventListener('click', function(){ showFace('B'); });
+  $('#tabC').addEventListener('click', function(){ showFace('C'); });
+
+  $('#loanLine').addEventListener('click', function(e){
+    var go = e.target.closest('[data-goto]');
+    if (go) { showFace(go.dataset.goto); }
+  });
+
+  /* A 面 tracklist：单击选中开抽屉，400ms 内再点循环切换 */
+  var lastTap = { key: '', at: 0 };
+  $('#trackList').addEventListener('click', function(e){
+    var row = e.target.closest('.track');
+    if (!row) return;
+    var k = row.dataset.date;
+    var now = Date.now();
+    if (lastTap.key === k && now - lastTap.at < 400) {
+      var r = state.days[k];
+      var cur = r ? normWork(r.work) : -1;
+      var next = cur >= 1 ? 0.5 : (cur > 0 ? 0 : 1);
+      sel = k;
+      setRecord(k, { work: next });
+      renderDrawer();
+      openDrawer();
+      if (cur === -1) toast('已记一条出工');
+      lastTap = { key: '', at: 0 };
+      return;
+    }
+    lastTap = { key: k, at: now };
+    sel = k;
+    $$('.track.sel').forEach(function(el){ el.classList.remove('sel'); });
+    row.classList.add('sel');
+    renderDrawer();
+    openDrawer();
+  });
+
+  /* B 面月历：单击选中跳 A 面抽屉，双击循环切换 */
+  var grid = $('#calGrid');
+  grid.addEventListener('click', function(e){
+    var btn = e.target.closest('.day');
+    if (!btn) return;
+    sel = btn.dataset.date;
+    $$('.day.sel').forEach(function(el){ el.classList.remove('sel'); el.removeAttribute('aria-current'); });
+    btn.classList.add('sel');
+    btn.setAttribute('aria-current', 'date');
+    renderDrawer();
+    refresh();
+    showFace('A');
+    openDrawer();
+  });
+  grid.addEventListener('dblclick', function(e){
+    var btn = e.target.closest('.day');
+    if (!btn) return;
+    var k = btn.dataset.date;
+    var r = state.days[k];
+    sel = k;
+    var cur = r ? normWork(r.work) : -1;
+    var next = cur >= 1 ? 0.5 : (cur > 0 ? 0 : 1);
+    setRecord(k, { work: next });
+    renderDrawer();
+    if (cur === -1) toast('已记一条出工');
+  });
+
+  /* 抽屉 */
+  $$('.seg-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var want = normWork(btn.dataset.work);
+      var cur = state.days[sel];
+      var ot = cur ? (Number(cur.ot) || 0) : 0;
+      var note = cur ? (cur.note || '') : '';
+      setRecord(sel, { work: want, ot: ot, note: note });
+    });
+  });
+  function addOt(delta){
+    var cur = state.days[sel];
+    var now = cur ? (Number(cur.ot) || 0) : 0;
+    var next = Math.max(0, Math.round((now + delta) * 2) / 2);
+    $('#otInput').value = next;
+    setRecord(sel, { ot: next });
+  }
+  $('#otPlus').addEventListener('click', function(){ addOt(1); });
+  $('#otMinus').addEventListener('click', function(){ addOt(-1); });
+  $$('#otQuick [data-add]').forEach(function(b){
+    b.addEventListener('click', function(){ addOt(Number(b.dataset.add)); });
+  });
+  $('#otInput').addEventListener('input', function(e){
+    var v = Math.max(0, parseFloat(e.target.value) || 0);
+    setRecord(sel, { ot: v });
+  });
+  $('#noteInput').addEventListener('input', function(e){
+    var v = e.target.value;
+    if (!state.days[sel] && !v.trim()) return;
+    setRecord(sel, { note: v });
+  });
+  $('#clearDay').addEventListener('click', function(){
+    if (!state.days[sel]) return;
+    deleteRecord(sel);
+    renderDrawer();
+    toast('已清除当天记录');
+  });
+  $('#drawerClose').addEventListener('click', closeDrawer);
+  $('#veil').addEventListener('click', closeDrawer);
+
+  /* 底部主按钮：未记 → 直接记出工；已记 → 开抽屉细调 */
+  $('#dockToday').addEventListener('click', function(){
+    var d = new Date();
+    var t = keyOf(d);
+    view.y = d.getFullYear(); view.m = d.getMonth();
+    sel = t;
+    var r = state.days[t];
+    var cur = r ? normWork(r.work) : -1;
+    if (cur === 1) {
+      renderDrawer();
+      refresh();
+      openDrawer();
+      return;
+    }
+    setRecord(t, { work: 1 });
+    renderDrawer();
+    refresh();
+    toast('今天出工，记上了');
+  });
+
+  /* 底部副按钮：A/B 面互换（合同 [记今天][B面] 双钮） */
+  $('#dockFace').addEventListener('click', function(){
+    showFace($('#panelA').classList.contains('on') ? 'B' : 'A');
+  });
+
+  /* 设置 */
+  $('#dailyWage').addEventListener('input', function(e){
+    state.settings.dailyWage = numOr(e.target.value, 0);
+    save(); refresh();
+  });
+  $('#otRate').addEventListener('input', function(e){
+    state.settings.otRate = numOr(e.target.value, 0);
+    save(); refresh();
+  });
+
+  /* 数据 */
+  $('#exportCsv').addEventListener('click', exportCsv);
+  $('#exportWeeks').addEventListener('click', exportWeeks);
+  $('#exportMonths').addEventListener('click', exportMonths);
+  $('#exportLoans').addEventListener('click', exportLoans);
+  $('#exportJson').addEventListener('click', exportJson);
+  $('#importJson').addEventListener('click', function(){ $('#fileInput').click(); });
+  $('#fileInput').addEventListener('change', function(e){
+    var f = e.target.files && e.target.files[0];
+    if (f) importJson(f);
+    e.target.value = '';
+  });
+
+  /* GitHub 云同步设置 */
+  $('#ghSave').addEventListener('click', async function(){
+    var tk = $('#ghToken').value.trim();
+    if (!tk) { toast('先粘贴 GitHub Token'); return; }
+    var btn = this;
+    btn.disabled = true;
+    renderGhStatus('正在连接 GitHub…', '');
+    try {
+      var login = await ghConnect(tk);
+      $('#ghToken').value = '';
+      toast('GitHub 已连接（' + login + '）');
+      renderGhUI();
+    } catch (e) {
+      renderGhStatus('连接失败：' + (e.message || '网络问题'), 'bad');
+      toast('GitHub 连接失败');
+    }
+    btn.disabled = false;
+    renderSync();
+  });
+  $('#ghCreate').addEventListener('click', async function(){
+    if (!GH.token) { toast('先粘贴并连接 GitHub Token'); return; }
+    var btn = this;
+    btn.disabled = true;
+    renderGhStatus('正在创建云端账本…', '');
+    try {
+      var id = await ghCreateGist();
+      toast('云端账本已创建');
+      renderGhStatus('已连接 GitHub · ' + (GH.login || '账号') + ' · 账本 ID：' + id, 'ok');
+      refresh();
+    } catch (e) {
+      renderGhStatus('创建失败：' + (e.message || '网络问题'), 'bad');
+      toast('创建云端账本失败');
+    }
+    btn.disabled = false;
+    renderSync();
+  });
+  $('#ghGistSave').addEventListener('click', async function(){
+    var id = $('#ghGistId').value.trim();
+    if (!GH.token) { toast('先粘贴并连接 GitHub Token'); return; }
+    if (!/^[0-9a-f]{6,64}$/i.test(id)) { toast('Gist ID 看起来不对'); return; }
+    GH.gistId = id; GH.etag = '';
+    ghSaveConfig();
+    renderGhStatus('正在校验云端账本…', '');
+    try {
+      var j = await ghFetch(false);
+      if (j && j.data) {
+        adoptRemote(j);
+      } else {
+        pushNow();
+      }
+      SYNC.mode = 'gh'; SYNC.available = true;
+      ghSchedulePoll();
+      renderGhUI();
+      toast('云端账本已接上');
+    } catch (e) {
+      renderGhStatus('校验失败：' + (e.message || '网络问题'), 'bad');
+      toast('云端账本连不上');
+    }
+    renderSync();
+  });
+  $('#ghOff').addEventListener('click', function(){
+    if (!GH.token && !GH.gistId) { toast('还没有配置云同步'); return; }
+    if (!window.confirm('断开 GitHub 云同步？本机记录保留，只是不再自动互通。')) return;
+    GH.token = ''; GH.gistId = ''; GH.etag = ''; GH.login = '';
+    ghSaveConfig();
+    clearInterval(GH.pollT);
+    SYNC.mode = syncMode(); SYNC.available = false; SYNC.ok = false; SYNC.err = false;
+    renderGhUI(); renderSync();
+    toast('已断开 GitHub 云同步');
+  });
+  $('#clearMonth').addEventListener('click', function(){
+    var s = stats();
+    var keys = [];
+    for (var d = 1; d <= s.dim; d++) {
+      var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
+      if (state.days[k]) keys.push(k);
+    }
+    if (!keys.length) { toast('这个月还没有记录'); return; }
+    if (!window.confirm('清空 ' + (view.m + 1) + ' 月的 ' + keys.length + ' 条考勤记录？借支记录和别的月份不受影响。')) return;
+    keys.forEach(function(k){ delete state.days[k]; });
+    save(); renderDrawer(); refresh();
+    toast('已清空本月');
+  });
+
+  /* 借支 */
+  $('#loanForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var date = $('#loanDate').value || keyOf(new Date());
+    var amt = parseFloat($('#loanAmount').value);
+    if (!isFinite(amt) || amt <= 0) { toast('先填一个大于 0 的金额'); return; }
+    state.loans.push({
+      id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      date: date,
+      amount: Math.round(amt * 100) / 100,
+      note: $('#loanNote').value.trim().slice(0, 30)
+    });
+    save();
+    $('#loanAmount').value = '';
+    $('#loanNote').value = '';
+    refresh();
+    toast('已记一笔借支 ¥' + money(amt) + '，算入 ' + Number(date.slice(5, 7)) + ' 月工资');
+  });
+  $('#loanList').addEventListener('click', function(e){
+    var btn = e.target.closest('.lx');
+    if (!btn) return;
+    var id = btn.dataset.id;
+    var item = state.loans.filter(function(l){ return l.id === id; })[0];
+    if (!item) return;
+    if (!window.confirm('删除 ' + item.date + ' 的借支 ¥' + money(item.amount) + '？')) return;
+    state.loans = state.loans.filter(function(l){ return l.id !== id; });
+    save(); refresh();
+    toast('已删除这笔借支');
+  });
+
+  /* 键盘 */
+  document.addEventListener('keydown', function(e){
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === 'ArrowLeft') { shiftMonth(-1); }
+    else if (e.key === 'ArrowRight') { shiftMonth(1); }
+    else if (e.key.toLowerCase() === 't') { $('#goToday').click(); }
+    else if (e.key === 'Escape') { closeDrawer(); }
+  });
+
+  /* ---------- 启动 ---------- */
+  load();
+  var t0 = new Date();
+  view.y = t0.getFullYear();
+  view.m = t0.getMonth();
+  sel = keyOf(t0);
+  renderSettings();
+  $('#loanDate').value = keyOf(t0);
+  renderDrawer();
+  refresh();
+  renderGhUI();
+  syncBoot();
+
+  /* 调试句柄（浏览器控制台排查同步用） */
+  window.__KQ = { syncMode: syncMode, pollRemote: pollRemote, pushNow: pushNow, GH: GH, SYNC: SYNC };
+})();
+</script>
+</body>
+</html>
