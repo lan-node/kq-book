@@ -236,6 +236,25 @@
   table.wk tfoot td:first-child{font-family:var(--hand)}
   .wk-note{margin:9px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.6}
 
+  /* ---------- 按段统计 ---------- */
+  .range-row{display:flex;gap:8px;align-items:center;margin:2px 0 8px;flex-wrap:wrap}
+  .range-row input[type=date]{
+    flex:1;min-width:116px;height:44px;padding:0 8px;font-family:var(--mono);font-size:13px;color:var(--ink-b);
+    border:1.5px solid var(--rule-strong);border-radius:2px;background:#fff;font-variant-numeric:tabular-nums;
+  }
+  .range-dash{font-size:13px;color:var(--ink-2);flex:none}
+  .range-quick{display:flex;gap:6px;margin-bottom:10px}
+  .range-quick button{
+    flex:1;padding:14px 0;font-family:var(--hand);font-size:13.5px;font-weight:700;letter-spacing:.06em;
+    border:1.5px solid var(--rule-strong);background:none;color:var(--ink-2);border-radius:2px;
+  }
+  .range-quick button:hover{border-color:var(--ink-b);color:var(--ink-b)}
+  .range-meta{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin:0 0 4px;font-variant-numeric:tabular-nums}
+
+  /* ---------- 分段工价 ---------- */
+  .lf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:10px}
+  .lf-grid .lf{margin-top:0}
+
   /* ---------- 卡背 ---------- */
   .backsec{margin-top:16px;padding-top:12px;border-top:1px solid var(--rule)}
   .backsec:first-child{border-top:0;padding-top:0}
@@ -446,8 +465,27 @@
             <thead><tr><th>月份</th><th>天数</th><th>加班</th><th>应得</th><th>借支</th><th>实发</th></tr></thead>
             <tbody id="monthBody"></tbody>
           </table>
-          <p class="wk-note">金额按当前的日薪、加班费设置回算，改设置会同时改变历史月份的数字。</p>
+          <p class="wk-note">金额按每段工价回算：当月没记分段工价的日子用默认价。</p>
         </div>
+        <div class="sheet">
+          <h3>按段统计 <button type="button" class="text-btn" id="exportRange">导出</button></h3>
+          <div class="range-row">
+            <input type="date" id="rangeFrom" aria-label="开始日期">
+            <span class="range-dash" aria-hidden="true">至</span>
+            <input type="date" id="rangeTo" aria-label="结束日期">
+            <button type="button" class="btn ghost sm" id="rangeGo">统计</button>
+          </div>
+          <div class="range-quick" role="group" aria-label="快捷时段">
+            <button type="button" data-r="month">本月</button>
+            <button type="button" data-r="last">上月</button>
+            <button type="button" data-r="year">今年</button>
+            <button type="button" data-r="all">全部</button>
+          </div>
+          <p class="range-meta" id="rangeMeta"></p>
+          <table class="wk"><tbody id="rangeBody"></tbody></table>
+          <p class="wk-note">选一段日子算这段的账——跟老板按段结账、或者看某个项目从头到尾挣了多少，就用这个。</p>
+        </div>
+
         <div class="sheet">
           <h3>2026 年累计</h3>
           <table class="wk">
@@ -498,7 +536,34 @@
               <label class="lf-lb" for="otRate">加班费（元 / 小时）</label>
               <input id="otRate" type="number" min="0" step="1" inputmode="decimal">
             </div>
-            <p class="tip">工资 = 出勤天数 × 日薪 ＋ 加班小时 × 加班费。加班费填 0 就只按天数算钱。</p>
+            <p class="tip">这是默认价：所有没记分段工价的日子都按它算。某段时间价格不一样（换活、涨价），就在下面记一段。</p>
+          </div>
+
+          <div class="backsec" aria-label="分段工价">
+            <h3>分段工价 <span class="gh-tag">可选</span></h3>
+            <p class="tip">比如 6 月 350 一天、9 月起 400 一天——记成两段，每段的日子各自按各段的价格算账，互不影响。</p>
+            <form class="loan-form" id="rateForm">
+              <div class="lf-grid">
+                <div class="lf">
+                  <label class="lf-lb" for="rateFrom">从哪天起</label>
+                  <input type="date" id="rateFrom">
+                </div>
+                <div class="lf">
+                  <label class="lf-lb" for="rateTo">到哪天止（留空 = 一直有效）</label>
+                  <input type="date" id="rateTo">
+                </div>
+                <div class="lf">
+                  <label class="lf-lb" for="rateDaily">这段日薪（元 / 天）</label>
+                  <input type="number" id="rateDaily" min="0" step="0.01" inputmode="decimal" placeholder="0">
+                </div>
+                <div class="lf">
+                  <label class="lf-lb" for="rateOt">这段加班费（元 / 小时）</label>
+                  <input type="number" id="rateOt" min="0" step="0.01" inputmode="decimal" placeholder="0">
+                </div>
+              </div>
+              <button type="submit" class="btn">记这段工价</button>
+            </form>
+            <ul class="loan-list" id="rateList"></ul>
           </div>
 
           <div class="backsec" aria-label="数据">
@@ -619,7 +684,7 @@
   }
 
   /* ---------- 状态 ---------- */
-  var state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [] };
+  var state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [], rateSegs: [] };
   var view = { y: 0, m: 0 };
   var sel = '';
 
@@ -639,6 +704,31 @@
         note: String(l.note || '').slice(0, 30)
       };
     });
+    state.rateSegs = (state.rateSegs || []).filter(function(g){
+      if (!g || typeof g !== 'object') return false;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(g.from)) return false;
+      if (g.to && !/^\d{4}-\d{2}-\d{2}$/.test(g.to)) return false;
+      if (g.to && g.to < g.from) return false;
+      return (Number(g.daily) || 0) > 0 || (Number(g.ot) || 0) > 0;
+    }).map(function(g){
+      return {
+        id: String(g.id || ('r' + Math.random().toString(36).slice(2, 10))),
+        from: g.from,
+        to: g.to || '',
+        daily: Math.max(0, Number(g.daily) || 0),
+        ot: Math.max(0, Number(g.ot) || 0)
+      };
+    }).sort(function(a, b){ return a.from < b.from ? -1 : 1; });
+  }
+
+  /* 某天的工价：先匹配分段工价（按起始日先后，先记的先命中），都没有就用默认价 */
+  function rateFor(k){
+    var segs = state.rateSegs || [];
+    for (var i = 0; i < segs.length; i++) {
+      var g = segs[i];
+      if (k >= g.from && (!g.to || k <= g.to)) return { daily: g.daily, rate: g.ot, seg: g };
+    }
+    return { daily: numOr(state.settings.dailyWage, 0), rate: numOr(state.settings.otRate, 0), seg: null };
   }
 
   function load(){
@@ -653,12 +743,13 @@
       }
       if (s.days && typeof s.days === 'object') state.days = s.days;
       if (Array.isArray(s.loans)) state.loans = s.loans;
+      if (Array.isArray(s.rateSegs)) state.rateSegs = s.rateSegs;
     } catch (e) { /* 存储损坏就当没记录 */ }
     sanitizeState();
   }
 
   function applyState(d, at){
-    state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [] };
+    state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [], rateSegs: [] };
     if (d && typeof d === 'object') {
       if (d.settings && typeof d.settings === 'object') {
         state.settings.dailyWage = numOr(d.settings.dailyWage, 200);
@@ -666,6 +757,7 @@
       }
       if (d.days && typeof d.days === 'object') state.days = d.days;
       if (Array.isArray(d.loans)) state.loans = d.loans;
+      if (Array.isArray(d.rateSegs)) state.rateSegs = d.rateSegs;
     }
     sanitizeState();
     try {
@@ -934,13 +1026,15 @@
   }
 
   async function ghCreateGist(){
+    var hasRecords = Object.keys(state.days).length > 0 || state.loans.length > 0;
+    var seed = hasRecords ? ghFileBody() : JSON.stringify({ updatedAt: 0, data: state });
     var r = await fetch('https://api.github.com/gists', {
       method: 'POST',
       headers: ghHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         description: 'kq-book 出工记账本 · 云端账本',
         public: false,
-        files: (function(){ var f = {}; f[GH_FILE] = { content: ghFileBody() }; return f; })()
+        files: (function(){ var f = {}; f[GH_FILE] = { content: seed }; return f; })()
       })
     });
     if (r.status === 401) throw new Error('Token 无效或缺 gist 权限');
@@ -972,37 +1066,41 @@
     var dim = new Date(view.y, view.m + 1, 0).getDate();
     var todayK = keyOf(new Date());
     var work = 0, ot = 0, rest = 0, blank = 0;
+    var basePay = 0, otPay = 0, combos = {};
     for (var d = 1; d <= dim; d++) {
       var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
       var r = state.days[k];
       if (!r) { if (k <= todayK) blank++; continue; }
       if (r.work > 0) work += r.work; else rest++;
       ot += Number(r.ot) || 0;
+      var rt = rateFor(k);
+      basePay += (Number(r.work) || 0) * rt.daily;
+      otPay += (Number(r.ot) || 0) * rt.rate;
+      combos[rt.daily + '|' + rt.rate] = rt;
     }
-    var daily = numOr(state.settings.dailyWage, 0);
-    var rate = numOr(state.settings.otRate, 0);
-    var basePay = work * daily;
-    var otPay = ot * rate;
+    var ck = Object.keys(combos);
+    var uni = ck.length === 1 ? combos[ck[0]] : null;
     var gross = basePay + otPay;
     var loanMonth = loansIn(view.y, view.m + 1);
     return { dim: dim, work: work, ot: ot, rest: rest, blank: blank,
              basePay: basePay, otPay: otPay, gross: gross,
              loanMonth: loanMonth, net: gross - loanMonth,
-             daily: daily, rate: rate };
+             daily: uni ? uni.daily : numOr(state.settings.dailyWage, 0),
+             rate: uni ? uni.rate : numOr(state.settings.otRate, 0),
+             mixed: ck.length > 1 };
   }
 
   function yearStats(y){
     var prefix = String(y) + '-';
-    var days = 0, ot = 0;
+    var days = 0, ot = 0, pay = 0;
     Object.keys(state.days).forEach(function(k){
       if (k.indexOf(prefix) !== 0) return;
       var r = state.days[k];
+      var rt = rateFor(k);
       days += Number(r.work) || 0;
       ot += Number(r.ot) || 0;
+      pay += (Number(r.work) || 0) * rt.daily + (Number(r.ot) || 0) * rt.rate;
     });
-    var daily = numOr(state.settings.dailyWage, 0);
-    var rate = numOr(state.settings.otRate, 0);
-    var pay = days * daily + ot * rate;
     var loan = loansIn(y, 0);
     return { days: days, ot: ot, pay: pay, loan: loan, net: pay - loan };
   }
@@ -1018,27 +1116,28 @@
       if (!map[key]) {
         map[key] = { start: monday,
           end: new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6),
-          days: 0, ot: 0 };
+          days: 0, ot: 0, pay: 0 };
         order.push(key);
       }
-      var r = state.days[view.y + '-' + pad(view.m + 1) + '-' + pad(d)];
+      var kday = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
+      var r = state.days[kday];
       if (!r) continue;
+      var rt = rateFor(kday);
       map[key].days += Number(r.work) || 0;
       map[key].ot += Number(r.ot) || 0;
+      map[key].pay += (Number(r.work) || 0) * rt.daily + (Number(r.ot) || 0) * rt.rate;
     }
-    var daily = numOr(state.settings.dailyWage, 0);
-    var rate = numOr(state.settings.otRate, 0);
     return order.map(function(k){
       var w = map[k];
       return { key: k, start: w.start, end: w.end, days: w.days, ot: w.ot,
-               pay: w.days * daily + w.ot * rate };
+               pay: w.pay };
     });
   }
 
   function monthList(){
     var months = {};
     function bucket(ym){
-      if (!months[ym]) months[ym] = { days: 0, ot: 0, loan: 0 };
+      if (!months[ym]) months[ym] = { days: 0, ot: 0, loan: 0, gross: 0 };
       return months[ym];
     }
     Object.keys(state.days).forEach(function(k){
@@ -1046,20 +1145,19 @@
       var ym = k.slice(0, 7);
       if (!/^\d{4}-\d{2}$/.test(ym)) return;
       var m = bucket(ym);
+      var rt = rateFor(k);
       m.days += Number(r.work) || 0;
       m.ot += Number(r.ot) || 0;
+      m.gross += (Number(r.work) || 0) * rt.daily + (Number(r.ot) || 0) * rt.rate;
     });
     state.loans.forEach(function(l){
       var ym = l.date.slice(0, 7);
       if (!/^\d{4}-\d{2}$/.test(ym)) return;
       bucket(ym).loan += Number(l.amount) || 0;
     });
-    var daily = numOr(state.settings.dailyWage, 0);
-    var rate = numOr(state.settings.otRate, 0);
     return Object.keys(months).sort().map(function(ym){
       var m = months[ym];
-      var gross = m.days * daily + m.ot * rate;
-      return { ym: ym, days: m.days, ot: m.ot, gross: gross, loan: m.loan, net: gross - m.loan };
+      return { ym: ym, days: m.days, ot: m.ot, gross: m.gross, loan: m.loan, net: m.gross - m.loan };
     });
   }
 
@@ -1077,6 +1175,8 @@
     var behind;
     if (s.loanMonth > 0) {
       behind = '应得 <b>¥' + money(s.gross) + '</b>　·　借支 <span class="minus">−¥' + money(s.loanMonth) + '</span>';
+    } else if (s.mixed) {
+      behind = '应得 <b>¥' + money(s.gross) + '</b>　·　本月按分段工价';
     } else {
       behind = '出工 <b>' + money(s.work) + '</b> 天 × ¥' + money(s.daily);
       if (s.ot > 0) behind += ' ＋ 加班 <b>' + money(s.ot) + '</b> 点';
@@ -1118,7 +1218,8 @@
       if (k === sel) cls += ' sel';
 
       var stateTxt = r ? workLabel(w) : '未记';
-      var pay = r ? (w * s.daily + otH * s.rate) : 0;
+      var rt = r ? rateFor(k) : null;
+      var pay = r ? (w * rt.daily + otH * rt.rate) : 0;
 
       html += '<button type="button" class="' + cls + '" data-date="' + k + '" role="listitem"'
         + ' aria-label="' + esc(d + '日 ' + stateTxt + (otH ? ' 加班' + money(otH) + '小时' : '')) + '">'
@@ -1242,6 +1343,137 @@
     $('#ytdLoan').textContent = '¥' + money(y.loan);
   }
 
+  /* ---------- 按段统计：任意起止日期 ---------- */
+  function rangeStats(fromK, toK){
+    var days = 0, ot = 0, gross = 0, count = 0;
+    Object.keys(state.days).forEach(function(k){
+      if (k >= fromK && k <= toK) {
+        var r = state.days[k];
+        var w = normWork(r.work);
+        var o = Number(r.ot) || 0;
+        var rt = rateFor(k);
+        days += w; ot += o;
+        gross += w * rt.daily + o * rt.rate;
+        count++;
+      }
+    });
+    var loan = 0;
+    state.loans.forEach(function(l){
+      if (l.date >= fromK && l.date <= toK) loan += Number(l.amount) || 0;
+    });
+    var fd = parseKey(fromK), td = parseKey(toK);
+    var span = Math.round((td - fd) / 86400000) + 1;
+    return { days: days, ot: ot, gross: gross, loan: loan, net: gross - loan, count: count, span: span };
+  }
+
+  function netStr(n){
+    return n < 0 ? '−¥' + money(-n) : '¥' + money(n);
+  }
+
+  function renderRange(){
+    var body = $('#rangeBody');
+    var meta = $('#rangeMeta');
+    if (!body || !meta) return;
+    var f = $('#rangeFrom').value;
+    var t = $('#rangeTo').value;
+    if (!f || !t) {
+      body.innerHTML = '<tr><td colspan="2">选好开始和结束的日子，点「统计」</td></tr>';
+      meta.textContent = '';
+      return;
+    }
+    if (f > t) { var k = f; f = t; t = k; $('#rangeFrom').value = f; $('#rangeTo').value = t; }
+    var s = rangeStats(f, t);
+    var fd = parseKey(f), td = parseKey(t);
+    meta.textContent = (fd.getMonth() + 1) + '月' + fd.getDate() + '日 – ' + (td.getMonth() + 1) + '月' + td.getDate() + '日 · 共 ' + s.span + ' 天'
+      + (s.count ? ' · 记了 ' + s.count + ' 天' : ' · 没有记录');
+    if (!s.count && !s.loan) {
+      body.innerHTML = '<tr><td colspan="2">这段日子还没有记录</td></tr>';
+      return;
+    }
+    body.innerHTML = '<tr><td>出勤天数</td><td>' + money(s.days) + '</td></tr>'
+      + '<tr><td>加班小时</td><td>' + (s.ot > 0 ? money(s.ot) : '—') + '</td></tr>'
+      + '<tr><td>应得</td><td>' + money(s.gross) + '</td></tr>'
+      + '<tr><td>借支</td><td>' + (s.loan > 0 ? '−' + money(s.loan) : '—') + '</td></tr>'
+      + '<tr><td>实发</td><td>' + netStr(s.net) + '</td></tr>';
+  }
+
+  function rangePreset(kind){
+    var t = new Date();
+    var y = t.getFullYear(), m = t.getMonth();
+    var f, to;
+    if (kind === 'month') { f = new Date(y, m, 1); to = t; }
+    else if (kind === 'last') { f = new Date(y, m - 1, 1); to = new Date(y, m, 0); }
+    else if (kind === 'year') { f = new Date(y, 0, 1); to = t; }
+    else {
+      var min = '';
+      Object.keys(state.days).forEach(function(k){ if (!min || k < min) min = k; });
+      state.loans.forEach(function(l){ if (!min || l.date < min) min = l.date; });
+      if (!min) { toast('还没有任何记录'); return; }
+      f = parseKey(min); to = t;
+    }
+    $('#rangeFrom').value = keyOf(f);
+    $('#rangeTo').value = keyOf(to);
+    renderRange();
+  }
+
+  function exportRangeCsv(){
+    var f = $('#rangeFrom').value;
+    var t = $('#rangeTo').value;
+    if (!f || !t) { toast('先选起止日期'); return; }
+    if (f > t) { var k = f; f = t; t = k; }
+    var s = rangeStats(f, t);
+    if (!s.count && !s.loan) { toast('这段日子没有记录'); return; }
+    var rows = [['段统计', f, '至', t],
+      ['出勤天数', money(s.days)], ['加班小时', money(s.ot)],
+      ['应得', money(s.gross)], ['借支', money(s.loan)], ['实发', money(s.net)],
+      [],
+      ['日期', '星期', '出勤', '加班小时', '备注', '当日工资']];
+    var d = parseKey(f);
+    var end = parseKey(t);
+    while (d <= end) {
+      var k2 = keyOf(d);
+      var r = state.days[k2];
+      if (r) {
+        var w = normWork(r.work);
+        var o = Number(r.ot) || 0;
+        var rt = rateFor(k2);
+        rows.push([k2, WD[d.getDay()], workLabel(w), money(o), r.note || '', money(w * rt.daily + o * rt.rate)]);
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    rows.push([]);
+    rows.push(['借支明细']);
+    rows.push(['日期', '金额', '备注']);
+    var anyLoan = false;
+    state.loans.slice().sort(function(a, b){ return a.date < b.date ? -1 : 1; }).forEach(function(l){
+      if (l.date >= f && l.date <= t) { anyLoan = true; rows.push([l.date, money(l.amount), l.note || '']); }
+    });
+    if (!anyLoan) rows.push(['（这段没有借支）', '', '']);
+    download('\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
+      '段统计_' + f + '_至_' + t + '.csv', 'text/csv;charset=utf-8');
+    toast('已导出段统计');
+  }
+
+  function renderRateSegs(){
+    var box = $('#rateList');
+    if (!box) return;
+    var list = (state.rateSegs || []).slice().sort(function(a, b){ return a.from < b.from ? 1 : -1; });
+    if (!list.length) {
+      box.innerHTML = '<li class="loan-empty">没记分段工价 — 所有日子都按默认价算</li>';
+      return;
+    }
+    box.innerHTML = list.map(function(g){
+      var fd = parseKey(g.from);
+      var label = (fd.getMonth() + 1) + '月' + fd.getDate() + '日'
+        + (g.to ? ' – ' + (parseKey(g.to).getMonth() + 1) + '月' + parseKey(g.to).getDate() + '日' : ' 起 · 一直有效');
+      return '<li class="loan-item">'
+        + '<span class="ld" title="' + g.from + (g.to ? ' 至 ' + g.to : ' 起') + '">' + label + '</span>'
+        + '<span class="ln">日薪 ¥' + money(g.daily) + ' · 加班 ¥' + money(g.ot) + '/点</span>'
+        + '<button type="button" class="lx" data-id="' + esc(g.id) + '" aria-label="删除这段工价">×</button>'
+        + '</li>';
+    }).join('');
+  }
+
   function renderLoans(){
     var prefix = view.y + '-' + pad(view.m + 1) + '-';
     var list = state.loans.filter(function(l){ return l.date.indexOf(prefix) === 0; })
@@ -1290,7 +1522,9 @@
     renderWeeks();
     renderMonthStats();
     renderYtd();
+    renderRange();
     renderLoans();
+    renderRateSegs();
     renderDock();
     updateDayPay();
   }
@@ -1300,10 +1534,9 @@
 
   function updateDayPay(){
     var r = state.days[sel];
-    var daily = numOr(state.settings.dailyWage, 0);
-    var rate = numOr(state.settings.otRate, 0);
+    var rt = r ? rateFor(sel) : null;
     var w = r ? normWork(r.work) : 0;
-    var pay = r ? (w * daily + (Number(r.ot) || 0) * rate) : 0;
+    var pay = r ? (w * rt.daily + (Number(r.ot) || 0) * rt.rate) : 0;
     $('#dayPay').textContent = r ? '当日 ¥' + money(pay) : '当日 未记录';
     $('#clearDay').disabled = !r;
     var curW = r ? w : -1;
@@ -1414,7 +1647,8 @@
       var r = state.days[k];
       if (!r) continue;
       var w = normWork(r.work);
-      var pay = w * s.daily + (Number(r.ot) || 0) * s.rate;
+      var rt = rateFor(k);
+      var pay = w * rt.daily + (Number(r.ot) || 0) * rt.rate;
       sum += pay;
       rows.push([k, WD[parseKey(k).getDay()], workLabel(w),
                  money(Number(r.ot) || 0), r.note || '', money(pay)]);
@@ -1509,6 +1743,7 @@
         state.settings.dailyWage = numOr(data.settings.dailyWage, state.settings.dailyWage);
         state.settings.otRate = numOr(data.settings.otRate, state.settings.otRate);
       }
+      if (Array.isArray(data.rateSegs)) state.rateSegs = data.rateSegs;
       if (Array.isArray(data.loans)) {
         var seen = {};
         state.loans.forEach(function(l){ seen[l.id] = true; });
@@ -1708,6 +1943,18 @@
     e.target.value = '';
   });
 
+  /* 按段统计 */
+  $('#rangeGo').addEventListener('click', function(){
+    if (!$('#rangeFrom').value || !$('#rangeTo').value) { toast('先选开始和结束的日子'); return; }
+    renderRange();
+  });
+  $$('.range-quick [data-r]').forEach(function(b){
+    b.addEventListener('click', function(){ rangePreset(b.dataset.r); });
+  });
+  $('#exportRange').addEventListener('click', exportRangeCsv);
+  $('#rangeFrom').addEventListener('change', renderRange);
+  $('#rangeTo').addEventListener('change', renderRange);
+
   /* GitHub 云同步设置 */
   $('#ghSave').addEventListener('click', async function(){
     var tk = $('#ghToken').value.trim();
@@ -1755,8 +2002,11 @@
       var j = await ghFetch(false);
       if (j && j.data) {
         adoptRemote(j);
-      } else {
+      } else if (Object.keys(state.days).length || state.loans.length || localUpdatedAt() > 0) {
+        /* 本机有记录而云端为空 → 推上去；空设备连空账本则等待，绝不推"空+最新" */
         pushNow();
+      } else {
+        renderGhStatus('云端账本已接上（空的）— 在有记录的设备上打开本页会自动把记录推上来。', '');
       }
       SYNC.mode = 'gh'; SYNC.available = true;
       ghSchedulePoll();
@@ -1822,6 +2072,40 @@
     toast('已删除这笔借支');
   });
 
+  /* 分段工价 */
+  $('#rateForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var from = $('#rateFrom').value;
+    var to = $('#rateTo').value;
+    var daily = Math.round((parseFloat($('#rateDaily').value) || 0) * 100) / 100;
+    var ot = Math.round((parseFloat($('#rateOt').value) || 0) * 100) / 100;
+    if (!from) { toast('先选从哪天起'); return; }
+    if (to && to < from) { toast('结束日子比开始还早，倒不过来'); return; }
+    if (daily <= 0 && ot <= 0) { toast('日薪和加班费至少填一个大于 0'); return; }
+    state.rateSegs.push({
+      id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      from: from, to: to || '', daily: daily, ot: ot
+    });
+    sanitizeState();
+    save();
+    $('#rateDaily').value = '';
+    $('#rateOt').value = '';
+    refresh();
+    var fd = parseKey(from);
+    toast('已记一段工价：' + (fd.getMonth() + 1) + '月' + fd.getDate() + '日起' + (to ? '至' + (parseKey(to).getMonth() + 1) + '月' + parseKey(to).getDate() + '日' : '一直有效'));
+  });
+  $('#rateList').addEventListener('click', function(e){
+    var btn = e.target.closest('.lx');
+    if (!btn) return;
+    var id = btn.dataset.id;
+    var item = state.rateSegs.filter(function(g){ return g.id === id; })[0];
+    if (!item) return;
+    if (!window.confirm('删除 ' + item.from + (item.to ? ' 至 ' + item.to : ' 起') + ' 的分段工价？这段日子会改按默认价算。')) return;
+    state.rateSegs = state.rateSegs.filter(function(g){ return g.id !== id; });
+    save(); refresh();
+    toast('已删除这段工价');
+  });
+
   /* 键盘 */
   document.addEventListener('keydown', function(e){
     var tag = (e.target && e.target.tagName) || '';
@@ -1840,6 +2124,8 @@
   sel = keyOf(t0);
   renderSettings();
   $('#loanDate').value = keyOf(t0);
+  $('#rangeFrom').value = keyOf(new Date(t0.getFullYear(), t0.getMonth(), 1));
+  $('#rangeTo').value = keyOf(t0);
   renderDrawer();
   refresh();
   renderGhUI();
