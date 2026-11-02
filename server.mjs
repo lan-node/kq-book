@@ -21,6 +21,16 @@ let html;
 try { html = fs.readFileSync(HTML_FILE); }
 catch { console.error('找不到 index.html，请把本脚本放在 kq-book 目录里运行。'); process.exit(1); }
 
+// 应用壳静态件（PWA manifest + 图标），启动时读入内存
+const STATIC_FILES = {};
+for (const [route, [file, type]] of Object.entries({
+  '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
+  '/icon-192.png': ['icon-192.png', 'image/png'],
+  '/icon-512.png': ['icon-512.png', 'image/png'],
+})) {
+  try { STATIC_FILES[route] = { body: fs.readFileSync(path.join(__dirname, file)), type }; } catch { /* 缺文件就 404 */ }
+}
+
 let lastBackupAt = 0;
 function backupOnce() {
   if (!fs.existsSync(DATA_FILE)) return;
@@ -51,6 +61,13 @@ const server = http.createServer((req, res) => {
   if (u.pathname === '/' || u.pathname === '/index.html') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(html);
+    return;
+  }
+
+  const sf = STATIC_FILES[u.pathname];
+  if (sf) {
+    res.writeHead(200, { 'Content-Type': sf.type, 'Cache-Control': 'no-store' });
+    res.end(sf.body);
     return;
   }
 
