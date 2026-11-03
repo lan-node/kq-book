@@ -16,6 +16,7 @@ const HTML_FILE = path.join(__dirname, 'index.html');
 const DATA_FILE = path.join(__dirname, 'kq-data.json');
 const BACKUP_DIR = path.join(__dirname, 'backups');
 const MAX_BACKUPS = 50;
+const STARTED_AT = Date.now();
 
 let html;
 try { html = fs.readFileSync(HTML_FILE); }
@@ -43,7 +44,25 @@ function backupOnce() {
     fs.copyFileSync(DATA_FILE, path.join(BACKUP_DIR, name));
     const files = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.json')).sort();
     while (files.length > MAX_BACKUPS) fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+    dailySnapshot();
   } catch (e) { console.warn('备份失败:', e.message); }
+}
+
+/* ---------- 每日快照：一天一份，独立目录，保底 180 天 ---------- */
+const SNAP_DIR = path.join(__dirname, 'snapshots');
+const MAX_SNAPS = 180;
+function dailySnapshot() {
+  try {
+    fs.mkdirSync(SNAP_DIR, { recursive: true });
+    const d = new Date();
+    const name = 'snapshot-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.json';
+    const dest = path.join(SNAP_DIR, name);
+    if (fs.existsSync(dest)) return; // 今天已有快照，不动
+    fs.copyFileSync(DATA_FILE, dest);
+    log('每日快照已存：' + name);
+    const files = fs.readdirSync(SNAP_DIR).filter(f => f.endsWith('.json')).sort();
+    while (files.length > MAX_SNAPS) fs.unlinkSync(path.join(SNAP_DIR, files.shift()));
+  } catch (e) { console.warn('快照失败:', e.message); }
 }
 
 function readData() {
@@ -105,6 +124,35 @@ const server = http.createServer((req, res) => {
   if (u.pathname === '/api/ping') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end('{"ok":true,"app":"kq-book"}');
+    return;
+  }
+
+  /* 服务状态：数据规模 / 最近备份 / 快照情况，浏览器直接打开就能看 */
+  if (u.pathname === '/api/status') {
+    const d = readData();
+    let lastBackup = null, snaps = 0, latestSnap = null;
+    try {
+      const bf = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.json')).sort();
+      if (bf.length) lastBackup = bf[bf.length - 1];
+    } catch { /* 无备份目录 */ }
+    try {
+      const sf = fs.readdirSync(SNAP_DIR).filter(f => f.endsWith('.json')).sort();
+      snaps = sf.length;
+      if (sf.length) latestSnap = sf[sf.length - 1];
+    } catch { /* 无快照目录 */ }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({
+      ok: true,
+      app: 'kq-book',
+      days: d && d.data ? Object.keys(d.data.days || {}).length : 0,
+      loans: d && d.data ? (d.data.loans || []).length : 0,
+      rateSegs: d && d.data ? (d.data.rateSegs || []).length : 0,
+      updatedAt: d ? d.updatedAt : 0,
+      lastBackup,
+      snapshots: snaps,
+      latestSnap,
+      startedAt: STARTED_AT
+    }));
     return;
   }
 
