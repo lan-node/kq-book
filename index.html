@@ -357,6 +357,20 @@
   .quick{display:flex;gap:6px;margin-top:9px}
   .quick button{flex:1;padding:14px 0;font-family:var(--mono);font-size:12.5px;border:1.5px solid var(--rule-strong);background:none;color:var(--ink-2);border-radius:2px}
   .quick button:hover{border-color:var(--ink-b);color:var(--ink-b)}
+  .quick button.on{background:var(--ink-b);border-color:var(--ink-b);color:var(--paper)}
+
+  /* ---------- 月账单图 ---------- */
+  #billVeil{z-index:60}
+  .bill-modal{position:fixed;inset:0;z-index:61;display:flex;align-items:flex-end;justify-content:center;padding:12px;pointer-events:none}
+  .bill-modal.on{pointer-events:auto}
+  .bill-box{background:var(--paper);border:1.5px solid var(--rule-strong);border-radius:4px;width:100%;max-width:520px;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(43,42,38,.35);overflow:hidden}
+  .bill-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--rule)}
+  .bill-head b{font-size:16px}
+  .bill-head .x{width:44px;height:44px;margin-right:-10px;border:none;background:none;font-size:26px;color:var(--ink-2);line-height:1;cursor:pointer}
+  .bill-scroll{overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}
+  .bill-scroll img{width:100%;height:auto;display:block}
+  .bill-btns{display:flex;gap:10px;padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--rule)}
+  .bill-btns .btn{flex:1}
   .note-in{
     width:100%;height:44px;margin-top:7px;padding:0 10px;font-size:15px;font-family:var(--sans);color:var(--ink-b);
     border:1.5px solid var(--rule-strong);border-radius:2px;background:#fff;
@@ -467,7 +481,15 @@
           <p class="wk-note">按自然周（周一起）统计，只算本月的天。</p>
         </div>
         <div class="sheet">
-          <h3>按月统计 <button type="button" class="text-btn" id="exportMonths">导出</button></h3>
+          <h3>按工地统计 <button type="button" class="text-btn" id="siteScopeBtn">全部</button> <button type="button" class="text-btn" id="exportSites">导出</button></h3>
+          <table class="wk">
+            <thead><tr><th>工地</th><th>天数</th><th>加班</th><th>工钱</th></tr></thead>
+            <tbody id="siteBody"></tbody>
+          </table>
+          <p class="wk-note">默认算本月，点「全部」算所有记录；没标工地的日子归到「未标注」。</p>
+        </div>
+        <div class="sheet">
+          <h3>按月统计 <button type="button" class="text-btn" id="billBtn">生成账单图</button> <button type="button" class="text-btn" id="exportMonths">导出</button></h3>
           <table class="wk">
             <thead><tr><th>月份</th><th>天数</th><th>加班</th><th>应得</th><th>借支</th><th>实发</th></tr></thead>
             <tbody id="monthBody"></tbody>
@@ -544,6 +566,19 @@
               <input id="otRate" type="number" min="0" step="1" inputmode="decimal">
             </div>
             <p class="tip">这是默认价：所有没记分段工价的日子都按它算。某段时间价格不一样（换活、涨价），就在下面记一段。</p>
+          </div>
+
+          <div class="backsec" aria-label="工地">
+            <h3>工地 <span class="gh-tag">可选</span></h3>
+            <p class="tip">把常去的工地记在这里，每天出工时点一下标到哪个工地，统计里就能分开算每个工地的账（最多 8 个）。</p>
+            <form class="loan-form" id="siteForm">
+              <div class="lf wide">
+                <label class="lf-lb" for="siteName">工地名称</label>
+                <input type="text" id="siteName" placeholder="例：一号楼、东院装修" maxlength="10">
+              </div>
+              <button type="submit" class="btn">添加工地</button>
+            </form>
+            <ul class="loan-list" id="siteList"></ul>
           </div>
 
           <div class="backsec" aria-label="分段工价">
@@ -641,12 +676,38 @@
   <div style="margin-top:14px">
     <label class="lf-lb" for="noteInput" style="font-size:12.5px;color:var(--ink-2)">备注（选填）</label>
     <input id="noteInput" class="note-in" type="text" placeholder="选填：夜班到 10 点、补卡、请假原因" maxlength="60">
+    <div class="quick" id="noteQuick" aria-label="备注常用语">
+      <button type="button" data-note="下雨停工">下雨停工</button>
+      <button type="button" data-note="加班到9点">加班9点</button>
+      <button type="button" data-note="补卡">补卡</button>
+      <button type="button" data-note="请假">请假</button>
+      <button type="button" data-note="跟老板结账">结账</button>
+    </div>
+  </div>
+  <div style="margin-top:14px" id="siteWrap">
+    <label class="lf-lb" style="font-size:12.5px;color:var(--ink-2)">工地（选标 · 统计里分开算账）</label>
+    <div class="quick" id="siteChips" aria-label="标注工地"></div>
   </div>
   <div class="dfoot">
     <span class="daypay" id="dayPay">当日 未记录</span>
     <button type="button" class="text-btn" id="clearDay">清除当天</button>
   </div>
 </aside>
+
+<div class="veil" id="billVeil"></div>
+<div class="bill-modal" id="billModal" role="dialog" aria-modal="true" aria-label="月账单图片" hidden>
+  <div class="bill-box">
+    <div class="bill-head">
+      <b id="billTitle">月账单</b>
+      <button type="button" class="x" id="billClose" aria-label="关闭">×</button>
+    </div>
+    <div class="bill-scroll"><img id="billImg" alt="月账单图片"></div>
+    <div class="bill-btns">
+      <button type="button" class="btn" id="billSave">保存图片</button>
+      <button type="button" class="btn ghost" id="billShare" hidden>分享</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -689,14 +750,17 @@
   }
 
   /* ---------- 状态 ---------- */
-  var state = { settings: { dailyWage: 200, otRate: 0 }, days: {}, loans: [], rateSegs: [] };
+  var state = { settings: { dailyWage: 200, otRate: 0, sites: [] }, days: {}, loans: [], rateSegs: [] };
   var view = { y: 0, m: 0 };
   var sel = '';
 
   function sanitizeState(){
     Object.keys(state.days).forEach(function(k){
       var r = state.days[k];
-      if (r && typeof r === 'object') r.work = normWork(r.work);
+      if (r && typeof r === 'object') {
+        r.work = normWork(r.work);
+        r.site = String(r.site || '').slice(0, 10);
+      }
       else delete state.days[k];
     });
     state.loans = (state.loans || []).filter(function(l){
@@ -724,6 +788,9 @@
         ot: Math.max(0, Number(g.ot) || 0)
       };
     }).sort(function(a, b){ return a.from < b.from ? -1 : 1; });
+    if (!Array.isArray(state.settings.sites)) state.settings.sites = [];
+    state.settings.sites = state.settings.sites.map(function(s){ return String(s).trim().slice(0, 10); })
+      .filter(function(s, i, a){ return s && a.indexOf(s) === i; }).slice(0, 8);
   }
 
   /* 某天的工价：先匹配分段工价（按起始日先后，先记的先命中），都没有就用默认价 */
@@ -745,6 +812,7 @@
       if (s.settings && typeof s.settings === 'object') {
         state.settings.dailyWage = numOr(s.settings.dailyWage, 200);
         state.settings.otRate = numOr(s.settings.otRate, 0);
+        if (Array.isArray(s.settings.sites)) state.settings.sites = s.settings.sites;
       }
       if (s.days && typeof s.days === 'object') state.days = s.days;
       if (Array.isArray(s.loans)) state.loans = s.loans;
@@ -759,6 +827,7 @@
       if (d.settings && typeof d.settings === 'object') {
         state.settings.dailyWage = numOr(d.settings.dailyWage, 200);
         state.settings.otRate = numOr(d.settings.otRate, 0);
+        if (Array.isArray(d.settings.sites)) state.settings.sites = d.settings.sites;
       }
       if (d.days && typeof d.days === 'object') state.days = d.days;
       if (Array.isArray(d.loans)) state.loans = d.loans;
@@ -1234,7 +1303,7 @@
         + (otH ? '<span class="ot">+' + money(otH) + '点</span>' : '')
         + '<span class="lead" aria-hidden="true"></span>'
         + '<span class="amt">' + (r ? '¥' + money(pay) : '—') + '</span>'
-        + (r && r.note ? '<span class="note">' + esc(r.note) + '</span>' : '')
+        + (r && (r.note || r.site) ? '<span class="note">' + esc((r.site ? '【' + r.site + '】' : '') + (r.note || '')) + '</span>' : '')
         + '</button>';
       listed++;
     }
@@ -1432,7 +1501,7 @@
       ['出勤天数', money(s.days)], ['加班小时', money(s.ot)],
       ['应得', money(s.gross)], ['借支', money(s.loan)], ['实发', money(s.net)],
       [],
-      ['日期', '星期', '出勤', '加班小时', '备注', '当日工资']];
+      ['日期', '星期', '出勤', '加班小时', '工地', '备注', '当日工资']];
     var d = parseKey(f);
     var end = parseKey(t);
     while (d <= end) {
@@ -1442,7 +1511,7 @@
         var w = normWork(r.work);
         var o = Number(r.ot) || 0;
         var rt = rateFor(k2);
-        rows.push([k2, WD[d.getDay()], workLabel(w), money(o), r.note || '', money(w * rt.daily + o * rt.rate)]);
+        rows.push([k2, WD[d.getDay()], workLabel(w), money(o), r.site || '', r.note || '', money(w * rt.daily + o * rt.rate)]);
       }
       d.setDate(d.getDate() + 1);
     }
@@ -1530,6 +1599,9 @@
     renderRange();
     renderLoans();
     renderRateSegs();
+    renderSiteChips();
+    renderSites();
+    renderSiteList();
     renderDock();
     updateDayPay();
   }
@@ -1582,12 +1654,13 @@
 
   function setRecord(key, patch){
     var cur = state.days[key];
-    var next = cur ? { work: normWork(cur.work), ot: Number(cur.ot) || 0, note: cur.note || '' }
-                   : { work: 1, ot: 0, note: '' };
+    var next = cur ? { work: normWork(cur.work), ot: Number(cur.ot) || 0, note: cur.note || '', site: cur.site || '' }
+                   : { work: 1, ot: 0, note: '', site: '' };
     if (patch) {
       if (typeof patch.work !== 'undefined') next.work = normWork(patch.work);
       if (typeof patch.ot !== 'undefined') next.ot = Math.max(0, Number(patch.ot) || 0);
       if (typeof patch.note !== 'undefined') next.note = String(patch.note).slice(0, 60);
+      if (typeof patch.site !== 'undefined') next.site = String(patch.site).slice(0, 10);
     }
     state.days[key] = next;
     save();
@@ -1645,7 +1718,7 @@
 
   function exportCsv(){
     var s = stats();
-    var rows = [['日期','星期','出勤','加班小时','备注','当日工资']];
+    var rows = [['日期','星期','出勤','加班小时','工地','备注','当日工资']];
     var sum = 0;
     for (var d = 1; d <= s.dim; d++) {
       var k = view.y + '-' + pad(view.m + 1) + '-' + pad(d);
@@ -1656,9 +1729,9 @@
       var pay = w * rt.daily + (Number(r.ot) || 0) * rt.rate;
       sum += pay;
       rows.push([k, WD[parseKey(k).getDay()], workLabel(w),
-                 money(Number(r.ot) || 0), r.note || '', money(pay)]);
+                 money(Number(r.ot) || 0), r.site || '', r.note || '', money(pay)]);
     }
-    rows.push(['合计', '', '出工 ' + money(s.work) + ' 天', money(s.ot), '', money(sum)]);
+    rows.push(['合计', '', '出工 ' + money(s.work) + ' 天', money(s.ot), '', '', money(sum)]);
     download('\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
       '考勤_' + view.y + '-' + pad(view.m + 1) + '.csv', 'text/csv;charset=utf-8');
     toast('已导出本月表格');
@@ -1741,12 +1814,19 @@
         state.days[k] = {
           work: normWork(r.work),
           ot: Math.max(0, Number(r.ot) || 0),
-          note: String(r.note || '').slice(0, 60)
+          note: String(r.note || '').slice(0, 60),
+          site: String(r.site || '').slice(0, 10)
         };
       });
       if (data.settings) {
         state.settings.dailyWage = numOr(data.settings.dailyWage, state.settings.dailyWage);
         state.settings.otRate = numOr(data.settings.otRate, state.settings.otRate);
+        if (Array.isArray(data.settings.sites)) {
+          data.settings.sites.forEach(function(s){
+            s = String(s).trim().slice(0, 10);
+            if (s && (state.settings.sites || []).indexOf(s) === -1) state.settings.sites.push(s);
+          });
+        }
       }
       if (Array.isArray(data.rateSegs)) state.rateSegs = data.rateSegs;
       if (Array.isArray(data.loans)) {
@@ -1768,6 +1848,216 @@
     };
     reader.onerror = function(){ toast('读取文件失败'); };
     reader.readAsText(file, 'utf-8');
+  }
+
+  /* ---------- 工地分账 ---------- */
+  function siteStats(all){
+    var pre = all ? '' : (view.y + '-' + pad(view.m + 1) + '-');
+    var map = {};
+    Object.keys(state.days).forEach(function(k){
+      if (pre && k.indexOf(pre) !== 0) return;
+      var r = state.days[k];
+      var w = normWork(r.work);
+      var o = Number(r.ot) || 0;
+      var rt = rateFor(k);
+      var name = r.site || '未标注';
+      if (!map[name]) map[name] = { days: 0, ot: 0, pay: 0 };
+      map[name].days += w;
+      map[name].ot += o;
+      map[name].pay += w * rt.daily + o * rt.rate;
+    });
+    return Object.keys(map).map(function(name){
+      return { name: name, days: map[name].days, ot: map[name].ot, pay: map[name].pay };
+    }).sort(function(a, b){ return b.pay - a.pay; });
+  }
+
+  var siteAllMode = false;
+
+  function renderSites(){
+    var body = $('#siteBody');
+    if (!body) return;
+    var rows = siteStats(siteAllMode);
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="4">' + (siteAllMode ? '还没有记录' : '这个月还没有记录') + '</td></tr>';
+      var sb = $('#siteScopeBtn');
+      if (sb) sb.textContent = siteAllMode ? '本月' : '全部';
+      return;
+    }
+    body.innerHTML = rows.map(function(s){
+      return '<tr><td>' + esc(s.name) + '</td><td>' + money(s.days) + '</td><td>'
+        + (s.ot > 0 ? money(s.ot) : '—') + '</td><td>' + money(s.pay) + '</td></tr>';
+    }).join('');
+    var btn = $('#siteScopeBtn');
+    if (btn) btn.textContent = siteAllMode ? '本月' : '全部';
+  }
+
+  function exportSitesCsv(){
+    var rows = siteStats(siteAllMode);
+    if (!rows.length) { toast(siteAllMode ? '还没有记录' : '这个月还没有记录'); return; }
+    var out = [['工地', '出勤天数', '加班小时', '工钱']];
+    var t = { days: 0, ot: 0, pay: 0 };
+    rows.forEach(function(s){
+      t.days += s.days; t.ot += s.ot; t.pay += s.pay;
+      out.push([s.name, money(s.days), money(s.ot), money(s.pay)]);
+    });
+    out.push(['合计', money(t.days), money(t.ot), money(t.pay)]);
+    download('\uFEFF' + out.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n'),
+      '按工地统计_' + (siteAllMode ? '全部' : view.y + '-' + pad(view.m + 1)) + '.csv', 'text/csv;charset=utf-8');
+    toast('已导出按工地统计');
+  }
+
+  function renderSiteChips(){
+    var box = $('#siteChips');
+    if (!box) return;
+    var r = state.days[sel];
+    var cur = r ? (r.site || '') : '';
+    var html = '<button type="button" class="' + (cur === '' ? 'on' : '') + '" data-site="">不标</button>';
+    (state.settings.sites || []).forEach(function(s){
+      html += '<button type="button" class="' + (cur === s ? 'on' : '') + '" data-site="' + esc(s) + '">' + esc(s) + '</button>';
+    });
+    html += '<button type="button" data-site-add="1">＋ 新工地</button>';
+    box.innerHTML = html;
+  }
+
+  function renderSiteList(){
+    var box = $('#siteList');
+    if (!box) return;
+    var sites = state.settings.sites || [];
+    if (!sites.length) {
+      box.innerHTML = '<li class="loan-empty">还没记工地 — 添加后每天出工就能标注</li>';
+      return;
+    }
+    box.innerHTML = sites.map(function(s){
+      return '<li class="loan-item"><span class="ln">' + esc(s) + '</span>'
+        + '<button type="button" class="lx" data-site="' + esc(s) + '" aria-label="删除工地 ' + esc(s) + '">×</button></li>';
+    }).join('');
+  }
+
+  /* ---------- 月账单长图 ---------- */
+  function drawBill(){
+    var y = view.y, m = view.m + 1;
+    var s = stats();
+    var firstDow = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    var weeks = Math.ceil((firstDow + s.dim) / 7);
+    var W = 750, padX = 44;
+    var bandH = 118, sumH = 250, headH = 54, cellH = 96, footH = 130;
+    var H = bandH + sumH + headH + weeks * cellH + footH;
+    var c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var ctx = c.getContext('2d');
+    var paper = '#fbfaf6', blue = '#1d3f9e', red = '#c0392b', ink = '#2b2a26', ink2 = '#6b675c', rule = '#d8d2c2';
+    ctx.fillStyle = paper; ctx.fillRect(0, 0, W, H);
+    /* 红条标 */
+    ctx.fillStyle = red; ctx.fillRect(0, 0, W, bandH);
+    ctx.fillStyle = paper; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 46px KaiTi, "Kaiti SC", "STKaiti", serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('考勤本 · ' + m + ' 月账单', padX, bandH / 2 + 2);
+    ctx.font = '30px Consolas, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(y + '-' + pad(m), W - padX, bandH / 2 + 2);
+    /* 汇总 */
+    var sy = bandH + 52;
+    ctx.textAlign = 'left'; ctx.fillStyle = ink2; ctx.font = '28px sans-serif';
+    ctx.fillText('出工 ' + money(s.work) + ' 天 · 加班 ' + money(s.ot) + ' 小时', padX, sy);
+    ctx.textAlign = 'right';
+    if (s.loanMonth > 0) ctx.fillText('借支 −¥' + money(s.loanMonth), W - padX, sy);
+    var by = bandH + 156;
+    ctx.fillStyle = blue; ctx.font = 'bold 84px Consolas, "Cascadia Mono", monospace';
+    ctx.textAlign = 'left';
+    var netTxt = (s.net < 0 ? '−' : '') + '¥' + money(Math.abs(s.net));
+    ctx.fillText(netTxt, padX, by);
+    ctx.fillStyle = ink2; ctx.font = '28px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('实得', W - padX, by - 12);
+    ctx.fillText('应得 ¥' + money(s.gross), W - padX, by + 34);
+    /* 月历 */
+    var gy = bandH + sumH;
+    var cellW = (W - padX * 2) / 7;
+    var wd = ['一', '二', '三', '四', '五', '六', '日'];
+    ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (var i = 0; i < 7; i++) {
+      ctx.fillStyle = i >= 5 ? red : ink2;
+      ctx.fillText(wd[i], padX + cellW * i + cellW / 2, gy + headH / 2);
+    }
+    var gridY = gy + headH;
+    for (var d = 1; d <= s.dim; d++) {
+      var idx = firstDow + d - 1;
+      var col = idx % 7, row = Math.floor(idx / 7);
+      var x0 = padX + col * cellW, y0 = gridY + row * cellH;
+      var k = y + '-' + pad(m) + '-' + pad(d);
+      var r = state.days[k];
+      var w = r ? normWork(r.work) : -1;
+      if (r) {
+        ctx.fillStyle = w >= 1 ? 'rgba(29,63,158,.10)' : (w > 0 ? 'rgba(29,63,158,.05)' : 'rgba(107,103,92,.08)');
+        ctx.fillRect(x0 + 2, y0 + 2, cellW - 4, cellH - 4);
+      }
+      ctx.strokeStyle = rule; ctx.lineWidth = 1.5;
+      ctx.strokeRect(x0 + 2, y0 + 2, cellW - 4, cellH - 4);
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = col >= 5 ? red : ink;
+      ctx.font = 'bold 28px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(String(d), x0 + 12, y0 + 10);
+      if (r) {
+        ctx.font = '24px sans-serif'; ctx.textAlign = 'right';
+        ctx.fillStyle = w > 0 ? blue : ink2;
+        ctx.fillText(w >= 1 ? '出工' : (w > 0 ? '半天' : '歇'), x0 + cellW - 12, y0 + 12);
+      }
+      var o = r ? (Number(r.ot) || 0) : 0;
+      if (o > 0) {
+        ctx.fillStyle = red; ctx.font = 'bold 26px Consolas, monospace';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+        ctx.fillText('+' + money(o) + 'h', x0 + cellW - 12, y0 + cellH - 10);
+      }
+      if (r && r.site) {
+        ctx.fillStyle = ink2; ctx.font = '22px sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.fillText(String(r.site).slice(0, 4), x0 + 12, y0 + cellH - 10);
+      }
+    }
+    ctx.textBaseline = 'alphabetic';
+    /* 页脚 */
+    var fy = H - footH + 46;
+    ctx.fillStyle = rule; ctx.fillRect(padX, fy - 30, W - padX * 2, 2);
+    ctx.fillStyle = ink2; ctx.font = '24px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('考勤本 · 手记月账 · 仅供对账', padX, fy);
+    ctx.textAlign = 'right';
+    var now = new Date();
+    ctx.fillText('生成于 ' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()), W - padX, fy);
+    return c;
+  }
+
+  function openBill(){
+    var canvas = drawBill();
+    $('#billImg').src = canvas.toDataURL('image/png');
+    $('#billTitle').textContent = (view.m + 1) + ' 月账单 · ' + view.y;
+    var modal = $('#billModal'), veil = $('#billVeil');
+    modal.hidden = false;
+    requestAnimationFrame(function(){
+      veil.classList.add('on');
+      modal.classList.add('on');
+    });
+    var btn = $('#billShare');
+    btn.hidden = true;
+    try {
+      canvas.toBlob(function(blob){
+        if (!blob) return;
+        var file = null;
+        try { file = new File([blob], 'kq-bill.png', { type: 'image/png' }); } catch (e) { return; }
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          btn.hidden = false;
+          btn.onclick = function(){
+            navigator.share({ files: [file], title: $('#billTitle').textContent }).catch(function(){ /* 用户取消 */ });
+          };
+        }
+      }, 'image/png');
+    } catch (e) { /* 分享不可用就算了 */ }
+  }
+
+  function closeBill(){
+    $('#billVeil').classList.remove('on');
+    $('#billModal').classList.remove('on');
+    setTimeout(function(){ $('#billModal').hidden = true; }, 240);
   }
 
   /* ---------- 面切换 ---------- */
@@ -2111,6 +2401,84 @@
     toast('已删除这段工价');
   });
 
+  /* 备注常用语 */
+  $('#noteQuick').addEventListener('click', function(e){
+    var b = e.target.closest('[data-note]');
+    if (!b) return;
+    var inp = $('#noteInput');
+    var add = b.dataset.note;
+    var cur = inp.value.trim();
+    if (cur && cur.indexOf(add) !== -1) { toast('备注里已经有了'); return; }
+    inp.value = (cur ? cur + '，' + add : add).slice(0, 60);
+    inp.dispatchEvent(new Event('input'));
+  });
+
+  /* 工地：抽屉标注 */
+  $('#siteChips').addEventListener('click', function(e){
+    var add = e.target.closest('[data-site-add]');
+    if (add) {
+      var name = window.prompt('工地名称（最多 10 个字）', '');
+      if (!name) return;
+      name = name.trim().slice(0, 10);
+      if (!name) { toast('名字是空的'); return; }
+      if ((state.settings.sites || []).indexOf(name) !== -1) { toast('这个工地已经有了'); return; }
+      state.settings.sites.push(name);
+      sanitizeState();
+      save();
+      refresh();
+      toast('已添加工地「' + name + '」');
+      return;
+    }
+    var b = e.target.closest('[data-site]');
+    if (!b) return;
+    setRecord(sel, { site: b.dataset.site });
+    renderSiteChips();
+    toast(b.dataset.site ? '这天标到「' + b.dataset.site + '」' : '已取消工地标注');
+  });
+
+  /* 工地：卡背管理 */
+  $('#siteForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var name = $('#siteName').value.trim().slice(0, 10);
+    if (!name) { toast('先填工地名称'); return; }
+    if ((state.settings.sites || []).indexOf(name) !== -1) { toast('这个工地已经有了'); return; }
+    state.settings.sites.push(name);
+    sanitizeState();
+    save();
+    $('#siteName').value = '';
+    refresh();
+    toast('已添加工地「' + name + '」');
+  });
+  $('#siteList').addEventListener('click', function(e){
+    var btn = e.target.closest('.lx');
+    if (!btn) return;
+    var name = btn.dataset.site;
+    if (!window.confirm('删除工地「' + name + '」？已标这工地的历史记录不动，只是快捷按钮里没了。')) return;
+    state.settings.sites = (state.settings.sites || []).filter(function(s){ return s !== name; });
+    save();
+    refresh();
+    toast('已删除工地');
+  });
+  $('#siteScopeBtn').addEventListener('click', function(){
+    siteAllMode = !siteAllMode;
+    renderSites();
+  });
+  $('#exportSites').addEventListener('click', exportSitesCsv);
+
+  /* 月账单图 */
+  $('#billBtn').addEventListener('click', openBill);
+  $('#billClose').addEventListener('click', closeBill);
+  $('#billVeil').addEventListener('click', closeBill);
+  $('#billSave').addEventListener('click', function(){
+    var a = document.createElement('a');
+    a.href = $('#billImg').src;
+    a.download = '考勤本_' + view.y + '-' + pad(view.m + 1) + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast('图片已生成，到浏览器下载里找');
+  });
+
   /* 键盘 */
   document.addEventListener('keydown', function(e){
     var tag = (e.target && e.target.tagName) || '';
@@ -2118,7 +2486,7 @@
     if (e.key === 'ArrowLeft') { shiftMonth(-1); }
     else if (e.key === 'ArrowRight') { shiftMonth(1); }
     else if (e.key.toLowerCase() === 't') { $('#goToday').click(); }
-    else if (e.key === 'Escape') { closeDrawer(); }
+    else if (e.key === 'Escape') { closeDrawer(); closeBill(); }
   });
 
   /* ---------- 启动 ---------- */
