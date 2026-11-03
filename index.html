@@ -362,6 +362,7 @@
   /* ---------- 月账单图 ---------- */
   #billVeil{z-index:60}
   .bill-modal{position:fixed;inset:0;z-index:61;display:flex;align-items:flex-end;justify-content:center;padding:12px;pointer-events:none}
+  .bill-modal[hidden]{display:none}
   .bill-modal.on{pointer-events:auto}
   .bill-box{background:var(--paper);border:1.5px solid var(--rule-strong);border-radius:4px;width:100%;max-width:520px;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(43,42,38,.35);overflow:hidden}
   .bill-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--rule)}
@@ -2469,13 +2470,27 @@
   $('#billBtn').addEventListener('click', openBill);
   $('#billClose').addEventListener('click', closeBill);
   $('#billVeil').addEventListener('click', closeBill);
+  /* 点弹层空白处（bill-box 之外）也可关闭 */
+  $('#billModal').addEventListener('click', function(e){
+    if (!e.target.closest('.bill-box')) closeBill();
+  });
   $('#billSave').addEventListener('click', function(){
+    /* dataURL 转 blob 再下载：手机浏览器对 data: 链接下载支持差 */
+    var src = $('#billImg').src || '';
+    var b64 = src.split(',')[1];
+    if (!b64) { toast('先生成账单图'); return; }
+    var bin = atob(b64);
+    var buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    var blob = new Blob([buf], { type: 'image/png' });
+    var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = $('#billImg').src;
+    a.href = url;
     a.download = '考勤本_' + view.y + '-' + pad(view.m + 1) + '.png';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
     toast('图片已生成，到浏览器下载里找');
   });
 
