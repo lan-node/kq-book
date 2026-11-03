@@ -548,15 +548,13 @@
             <h3>分段工价 <span class="gh-tag">可选</span></h3>
             <p class="tip">比如 6 月 350 一天、9 月起 400 一天——记成两段，每段的日子各自按各段的价格算账，互不影响。</p>
             <form class="loan-form" id="rateForm">
-              <div class="lf-grid">
-                <div class="lf">
-                  <label class="lf-lb" for="rateFrom">从哪天起</label>
-                  <input type="date" id="rateFrom">
-                </div>
-                <div class="lf">
-                  <label class="lf-lb" for="rateTo">到哪天止 · 留空 = 一直有效</label>
-                  <input type="date" id="rateTo">
-                </div>
+              <div class="set-row">
+                <span>从哪天起</span>
+                <input type="date" id="rateFrom">
+              </div>
+              <div class="set-row">
+                <span>到哪天止 · 留空 = 一直有效</span>
+                <input type="date" id="rateTo">
               </div>
               <div class="set-row">
                 <span>这段日薪（元 / 天）</span>
